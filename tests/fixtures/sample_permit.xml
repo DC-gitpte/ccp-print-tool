@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TradenetResponse xmlns="urn:crimsonlogic:tn:schema:xsd:TradenetResponse"
+    xmlns:cbc="urn:crimsonlogic:tn:schema:xsd:CommonBasicComponents-2"
+    xmlns:cac="urn:crimsonlogic:tn:schema:xsd:CommonAggregateComponents-2"
+    xmlns:inp="urn:crimsonlogic:tn:schema:xsd:InNonPayment"
+    dateTime="202601140015" instanceIdentifier="91423196">
+    <cbc:MessageVersion>041</cbc:MessageVersion>
+    <cbc:SenderID>DCST.DCST401</cbc:SenderID>
+    <cbc:RecipientID>E01T.E01T001</cbc:RecipientID>
+    <cbc:TotalNumberOfResponse>1</cbc:TotalNumberOfResponse>
+    <OutboundMessage>
+        <inp:InNonPaymentPermit>
+            <inp:Declaration>
+                <inp:Header>
+                    <cbc:MessageReference>1</cbc:MessageReference>
+                    <cac:UniqueReferenceNumber>
+                        <cbc:ID>TESTUEN01E01T</cbc:ID>
+                        <cbc:Date>20260114</cbc:Date>
+                        <cbc:SequenceNumeric>0002</cbc:SequenceNumeric>
+                    </cac:UniqueReferenceNumber>
+                    <cbc:IssuingAuthorityID>03</cbc:IssuingAuthorityID>
+                    <cbc:CommonAccessReference>INPPMT</cbc:CommonAccessReference>
+                    <cbc:DeclarationType>GTR</cbc:DeclarationType>
+                    <cbc:DeclarationIndicator>true</cbc:DeclarationIndicator>
+                    <cbc:PreviousPermitNumber>IG6B000002W</cbc:PreviousPermitNumber>
+                    <cac:Remarks>
+                        <cbc:FreeText>TDBIG0609126513</cbc:FreeText>
+                    </cac:Remarks>
+                    <cbc:BankerGuaranteeCode>D</cbc:BankerGuaranteeCode>
+                    <cbc:SubmissionDatetime>20260114010059SST</cbc:SubmissionDatetime>
+                </inp:Header>
+                <inp:Cargo>
+                    <cbc:CargoPackingType>5</cbc:CargoPackingType>
+                    <cac:ReleaseLocation>
+                        <cbc:LocationCode>CZ</cbc:LocationCode>
+                        <cbc:LocationName>CHANGI FTZ</cbc:LocationName>
+                    </cac:ReleaseLocation>
+                    <cac:ReceiptLocation>
+                        <cbc:LocationCode>CZ</cbc:LocationCode>
+                        <cbc:LocationName>CHANGI FTZ</cbc:LocationName>
+                    </cac:ReceiptLocation>
+                </inp:Cargo>
+                <inp:Transport>
+                    <cac:InwardTransport>
+                        <cac:TransportMeans>
+                            <cac:TransportMode>
+                                <cbc:ModeCode>4</cbc:ModeCode>
+                                <cbc:ConveyanceReferenceNumber>NW909</cbc:ConveyanceReferenceNumber>
+                            </cac:TransportMode>
+                            <cbc:MAWBOUCROBLNumber>01281069903</cbc:MAWBOUCROBLNumber>
+                        </cac:TransportMeans>
+                        <cbc:ArrivalDate>20260114</cbc:ArrivalDate>
+                        <cbc:LoadingPort>USCVG</cbc:LoadingPort>
+                    </cac:InwardTransport>
+                </inp:Transport>
+                <inp:Party>
+                    <cac:DeclarantParty>
+                        <cac:PersonInformation>
+                            <cbc:CodeValue>2666666Z</cbc:CodeValue>
+                            <cbc:Name>JOHN TAN WEI MING</cbc:Name>
+                        </cac:PersonInformation>
+                        <cbc:Telephone>63111111</cbc:Telephone>
+                    </cac:DeclarantParty>
+                    <cac:DeclaringAgentParty>
+                        <cac:PartyIdentification>
+                            <cbc:ID>TESTUEN01E01T</cbc:ID>
+                        </cac:PartyIdentification>
+                        <cac:PartyName>
+                            <cbc:Name>SAMPLE LOGISTICS PTE LTD</cbc:Name>
+                        </cac:PartyName>
+                    </cac:DeclaringAgentParty>
+                    <cac:FreightForwarderParty>
+                        <cac:PartyIdentification>
+                            <cbc:ID>TESTUEN01E01T</cbc:ID>
+                        </cac:PartyIdentification>
+                        <cac:PartyName>
+                            <cbc:Name>SAMPLE LOGISTICS PTE LTD</cbc:Name>
+                        </cac:PartyName>
+                    </cac:FreightForwarderParty>
+                    <cac:InwardCarrierAgentParty>
+                        <cac:PartyIdentification>
+                            <cbc:ID>11770720000D</cbc:ID>
+                        </cac:PartyIdentification>
+                        <cac:PartyName>
+                            <cbc:Name>SATS AIRCARGO TERMINAL SERVICES</cbc:Name>
+                        </cac:PartyName>
+                    </cac:InwardCarrierAgentParty>
+                    <cac:ImporterParty>
+                        <cac:PartyIdentification>
+                            <cbc:ID>TESTUEN01E01T</cbc:ID>
+                        </cac:PartyIdentification>
+                        <cac:PartyName>
+                            <cbc:Name>SAMPLE LOGISTICS PTE LTD</cbc:Name>
+                        </cac:PartyName>
+                    </cac:ImporterParty>
+                </inp:Party>
+                <cac:Invoice>
+                    <cbc:InvoiceNumber>1</cbc:InvoiceNumber>
+                    <cbc:InvoiceDate>20261209</cbc:InvoiceDate>
+                    <cac:SupplierManufacturerParty>
+                        <cbc:CodeValue>.</cbc:CodeValue>
+                        <cbc:Name>OVERSEAS SUPPLIER CO LTD</cbc:Name>
+                    </cac:SupplierManufacturerParty>
+                    <cbc:UnitPriceTermType>CIF</cbc:UnitPriceTermType>
+                </cac:Invoice>
+                <inp:Item>
+                    <cbc:ItemSequenceNumeric>1</cbc:ItemSequenceNumeric>
+                    <cbc:ItemHarmonizedSystemCode>85243290</cbc:ItemHarmonizedSystemCode>
+                    <cbc:GoodsDescription>ELECTRONIC COMPONENTS - CIRCUIT BOARDS</cbc:GoodsDescription>
+                    <cac:ItemQuantity>
+                        <cbc:HarmonizedSystemQuantity unitCode="NMB">100.0000</cbc:HarmonizedSystemQuantity>
+                    </cac:ItemQuantity>
+                    <cbc:OriginCountry>US</cbc:OriginCountry>
+                    <cac:TransactionValue>
+                        <cbc:ItemCIFFOBValue>1154.00</cbc:ItemCIFFOBValue>
+                        <cbc:LastSellingPriceValue>1154.00</cbc:LastSellingPriceValue>
+                        <cac:UnitPriceValue>
+                            <cbc:Amount currencyID="SGD">11.5400</cbc:Amount>
+                        </cac:UnitPriceValue>
+                    </cac:TransactionValue>
+                    <cac:CASCProduct>
+                        <cbc:CASCProductCode>CUPAUDEXE</cbc:CASCProductCode>
+                        <cbc:CASCProductQuantity unitCode="NMB">100.0000</cbc:CASCProductQuantity>
+                    </cac:CASCProduct>
+                    <cbc:BrandName>UNBRANDED</cbc:BrandName>
+                    <cbc:ModelDescription>PCB-2026A</cbc:ModelDescription>
+                    <cac:ShippingMarksInformation>
+                        <cbc:ShippingMarks>ELEC</cbc:ShippingMarks>
+                    </cac:ShippingMarksInformation>
+                    <cbc:InHAWBHUCRHBLNumber>9176450452</cbc:InHAWBHUCRHBLNumber>
+                    <cbc:ItemInvoiceNumber>1</cbc:ItemInvoiceNumber>
+                    <cac:Tariff>
+                        <cac:GoodsAndServicesTax>
+                            <cbc:GoodsAndServicesTaxPercent>9</cbc:GoodsAndServicesTaxPercent>
+                            <cbc:GoodsAndServicesTaxAmount>103.86</cbc:GoodsAndServicesTaxAmount>
+                        </cac:GoodsAndServicesTax>
+                    </cac:Tariff>
+                </inp:Item>
+                <inp:Summary>
+                    <cbc:NumberOfItems>1</cbc:NumberOfItems>
+                    <cbc:TotalCIFFOBValue>1154.00</cbc:TotalCIFFOBValue>
+                    <cbc:TotalOuterPack unitCode="CTN">5</cbc:TotalOuterPack>
+                    <cbc:TotalGrossWeight unitCode="KGM">25.500</cbc:TotalGrossWeight>
+                    <cac:TotalTariff>
+                        <cbc:TotalGoodsAndServicesTaxAmount>103.86</cbc:TotalGoodsAndServicesTaxAmount>
+                        <cbc:TotalAmountPayable>0.00</cbc:TotalAmountPayable>
+                    </cac:TotalTariff>
+                </inp:Summary>
+            </inp:Declaration>
+            <cac:Permit>
+                <cbc:PermitNumber>IM6I011522Y</cbc:PermitNumber>
+                <cac:PermitValidityPeriod>
+                    <cbc:StartDate>20260114</cbc:StartDate>
+                    <cbc:EndDate>20260213</cbc:EndDate>
+                </cac:PermitValidityPeriod>
+                <cbc:CAApprovalDatetime>20260114001500SST</cbc:CAApprovalDatetime>
+                <cbc:PermitApprovalDatetime>20260114001500SST</cbc:PermitApprovalDatetime>
+                <cac:CAApprovalCondition>
+                    <cbc:AgencyCode>CA</cbc:AgencyCode>
+                    <cbc:ConditionCode>A59</cbc:ConditionCode>
+                    <cbc:ConditionDescription>APPROVED BY CUP SUBJECT TO THE CONDITION THAT THE GOODS ARE UNDER CUP    EXEMPTED CATEGORY. PLEASE SUBMIT INVOICE TO CUP WITHIN 24 HOURS WITH PERMIT     NUMBER INDICATED AT FAX  NO. 62210269. FOR ALL ITEMS.</cbc:ConditionDescription>
+                </cac:CAApprovalCondition>
+                <cac:SCApprovalCondition>
+                    <cbc:AgencyCode>SC</cbc:AgencyCode>
+                    <cbc:ConditionCode>Z10</cbc:ConditionCode>
+                    <cbc:ConditionDescription>APPROVED BY SINGAPORE CUSTOMS SUBJECT TO THE CONDITION THAT YOU COMPLY   WITH THE REQUIREMENTS OF THE COMPETENT AUTHORITY.</cbc:ConditionDescription>
+                </cac:SCApprovalCondition>
+                <cac:SCApprovalCondition>
+                    <cbc:AgencyCode>SC</cbc:AgencyCode>
+                    <cbc:ConditionCode>MA</cbc:ConditionCode>
+                    <cbc:ConditionDescription>THE GOODS AND THIS PERMIT MUST BE PRODUCED FOR CUSTOMS CLEARANCE AT A    FREE TRADE ZONE "OUT" GATE, WOODLANDS/TUAS CHECKPOINT OR WOODLANDS TRAIN        CHECKPOINT UNLESS IT IS DIRECTED TO THE "GREEN LANE" AT THE TIME OF CLEARANCE.</cbc:ConditionDescription>
+                </cac:SCApprovalCondition>
+                <cac:SCApprovalCondition>
+                    <cbc:AgencyCode>SC</cbc:AgencyCode>
+                    <cbc:ConditionCode>CD</cbc:ConditionCode>
+                    <cbc:ConditionDescription>GST RELIEF IS GRANTED IF THE VALUE OF THE DECLARED GOODS DOES NOT EXCEED S$400.00. THERE IS NO RELIEF FOR LIQUORS AND TOBACCO.</cbc:ConditionDescription>
+                </cac:SCApprovalCondition>
+                <cac:SCApprovalCondition>
+                    <cbc:AgencyCode>SC</cbc:AgencyCode>
+                    <cbc:ConditionCode>EEE</cbc:ConditionCode>
+                    <cbc:ConditionDescription>END OF CARGO CLEARANCE PERMIT.</cbc:ConditionDescription>
+                </cac:SCApprovalCondition>
+            </cac:Permit>
+        </inp:InNonPaymentPermit>
+    </OutboundMessage>
+</TradenetResponse>

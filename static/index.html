@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCP Print Tool</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        .subtitle { color: #666; margin-bottom: 32px; font-size: 0.95rem; }
+        .container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 32px;
+            width: 100%;
+            max-width: 640px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+        .upload-area.has-file {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+        .upload-area p { margin-top: 8px; color: #666; font-size: 0.9rem; }
+        .upload-icon { font-size: 2.5rem; margin-bottom: 8px; }
+        .file-name { font-weight: 600; color: #1a1a2e; margin-top: 8px; word-break: break-all; }
+        .file-size { color: #888; font-size: 0.85rem; }
+        input[type="file"] { display: none; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-align: center;
+            text-decoration: none;
+        }
+        .btn:hover { background: #1d4ed8; }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            margin-top: 12px;
+        }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn-success { background: #16a34a; margin-top: 16px; }
+        .btn-success:hover { background: #15803d; }
+
+        /* Progress bar */
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-container.visible { display: block; }
+        .progress-label {
+            font-size: 0.85rem;
+            color: #475569;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .progress-bar-track {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2563eb, #3b82f6);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.6s ease-out;
+        }
+        .progress-bar-fill.complete {
+            background: linear-gradient(90deg, #16a34a, #22c55e);
+            width: 100% !important;
+        }
+
+        /* Status messages */
+        .status {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .status.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+
+        /* Preview */
+        .preview-section { margin-top: 24px; display: none; }
+        .preview-section.visible { display: block; }
+        .preview-section h3 { font-size: 1rem; margin-bottom: 12px; color: #475569; }
+        .preview-frame {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        footer { margin-top: 40px; color: #94a3b8; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <h1>CCP Print Tool</h1>
+    <p class="subtitle">Upload a TradenetResponse XML to generate a Cargo Clearance Permit PDF</p>
+
+    <div class="container">
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">&#128196;</div>
+            <strong>Drop XML file here or click to browse</strong>
+            <p>Accepts TradenetResponse XML (.xml)</p>
+            <div class="file-name" id="fileName"></div>
+            <div class="file-size" id="fileSize"></div>
+        </div>
+        <input type="file" id="fileInput" accept=".xml,application/xml,text/xml">
+
+        <button class="btn" id="generateBtn" disabled>Generate CCP PDF</button>
+        <button class="btn btn-secondary" id="textBtn" disabled>View as Text (Debug)</button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-label">
+                <span id="progressStage">Processing...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="preview-section" id="previewSection">
+            <h3>Generated CCP</h3>
+            <iframe class="preview-frame" id="previewFrame"></iframe>
+            <a class="btn btn-success" id="downloadBtn" download>Download PDF</a>
+        </div>
+    </div>
+
+    <footer>CCP Print Tool v1.0.0 &mdash; GTNFE 5 Compliant</footer>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const generateBtn = document.getElementById('generateBtn');
+        const textBtn = document.getElementById('textBtn');
+        const status = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressStage = document.getElementById('progressStage');
+        const progressPercent = document.getElementById('progressPercent');
+        const previewSection = document.getElementById('previewSection');
+        const previewFrame = document.getElementById('previewFrame');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        let selectedFile = null;
+        let currentBlobUrl = null;
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.xml')) {
+                showStatus('Please select an XML file.', 'error');
+                return;
+            }
+            selectedFile = file;
+            uploadArea.classList.add('has-file');
+            fileName.textContent = file.name;
+            fileSize.textContent = formatBytes(file.size);
+            generateBtn.disabled = false;
+            textBtn.disabled = false;
+            hideStatus();
+            hidePreview();
+        }
+
+        generateBtn.addEventListener('click', () => {
+            if (selectedFile) generateCCP();
+        });
+
+        textBtn.addEventListener('click', () => {
+            if (selectedFile) generateText();
+        });
+
+        async function generateCCP() {
+            resetUI();
+            showProgress('Uploading XML...', 10);
+
+            const startTime = Date.now();
+
+            try {
+                // Animate progress while waiting for response
+                setTimeout(() => showProgress('Parsing XML...', 30), 150);
+                setTimeout(() => showProgress('Formatting CCP pages...', 50), 300);
+                setTimeout(() => showProgress('Rendering PDF...', 70), 500);
+
+                const response = await fetch('/api/v1/ccp/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/xml' },
+                    body: await selectedFile.arrayBuffer(),
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || `Server error: ${response.status}`);
+                }
+
+                // Ensure minimum visible progress time (500ms)
+                const elapsed = Date.now() - startTime;
+                const delay = Math.max(0, 500 - elapsed);
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+                showProgress('Complete!', 100);
+                progressFill.classList.add('complete');
+
+                const blob = await response.blob();
+                if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+                currentBlobUrl = URL.createObjectURL(blob);
+
+                previewFrame.src = currentBlobUrl;
+                downloadBtn.href = currentBlobUrl;
+                downloadBtn.download = `CCP_${selectedFile.name.replace('.xml', '')}.pdf`;
+                previewSection.classList.add('visible');
+
+                showStatus('CCP generated successfully.', 'success');
+            } catch (err) {
+                hideProgress();
+                showStatus(err.message, 'error');
+            } finally {
+                generateBtn.disabled = false;
+                textBtn.disabled = false;
+            }
+        }
+
+        async function generateText() {
+            resetUI();
+            showProgress('Generating text output...', 50);
+
+            try {
+                const response = await fetch('/api/v1/ccp/generate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/xml' },
+                    body: await selectedFile.arrayBuffer(),
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || `Server error: ${response.status}`);
+                }
+
+                showProgress('Complete!', 100);
+                progressFill.classList.add('complete');
+
+                const text = await response.text();
+                const blob = new Blob([text], { type: 'text/plain' });
+                if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+                currentBlobUrl = URL.createObjectURL(blob);
+
+                previewFrame.src = currentBlobUrl;
+                downloadBtn.href = currentBlobUrl;
+                downloadBtn.download = `CCP_${selectedFile.name.replace('.xml', '')}.txt`;
+                previewSection.classList.add('visible');
+
+                showStatus('Text output generated.', 'success');
+            } catch (err) {
+                hideProgress();
+                showStatus(err.message, 'error');
+            } finally {
+                generateBtn.disabled = false;
+                textBtn.disabled = false;
+            }
+        }
+
+        function resetUI() {
+            generateBtn.disabled = true;
+            textBtn.disabled = true;
+            hideStatus();
+            hidePreview();
+            progressFill.classList.remove('complete');
+            progressFill.style.width = '0%';
+            progressContainer.classList.add('visible');
+        }
+
+        function showProgress(stage, percent) {
+            progressContainer.classList.add('visible');
+            progressStage.textContent = stage;
+            progressPercent.textContent = percent + '%';
+            progressFill.style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            progressContainer.classList.remove('visible');
+        }
+
+        function hidePreview() {
+            previewSection.classList.remove('visible');
+        }
+
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function hideStatus() {
+            status.className = 'status';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+    </script>
+</body>
+</html>

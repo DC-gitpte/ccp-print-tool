@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCP Print Tool (Standalone)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        .subtitle { color: #666; margin-bottom: 32px; font-size: 0.95rem; }
+        .container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 32px;
+            width: 100%;
+            max-width: 640px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover, .upload-area.dragover { border-color: #2563eb; background: #eff6ff; }
+        .upload-area.has-file { border-color: #16a34a; background: #f0fdf4; }
+        .upload-area p { margin-top: 8px; color: #666; font-size: 0.9rem; }
+        .upload-icon { font-size: 2.5rem; margin-bottom: 8px; }
+        .file-name { font-weight: 600; color: #1a1a2e; margin-top: 8px; word-break: break-all; }
+        .file-size { color: #888; font-size: 0.85rem; }
+        input[type="file"] { display: none; }
+        .btn {
+            display: block; width: 100%; padding: 14px;
+            background: #2563eb; color: #fff; border: none; border-radius: 8px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: background 0.2s; text-align: center; text-decoration: none;
+        }
+        .btn:hover { background: #1d4ed8; }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-success { background: #16a34a; margin-top: 16px; }
+        .btn-success:hover { background: #15803d; }
+        .progress-container { margin-top: 20px; display: none; }
+        .progress-container.visible { display: block; }
+        .progress-label {
+            font-size: 0.85rem; color: #475569; margin-bottom: 8px;
+            display: flex; justify-content: space-between;
+        }
+        .progress-bar-track {
+            width: 100%; height: 8px; background: #e2e8f0;
+            border-radius: 4px; overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6);
+            border-radius: 4px; width: 0%; transition: width 0.4s ease-out;
+        }
+        .progress-bar-fill.complete {
+            background: linear-gradient(90deg, #16a34a, #22c55e); width: 100% !important;
+        }
+        .status { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; display: none; }
+        .status.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .preview-section { margin-top: 24px; display: none; }
+        .preview-section.visible { display: block; }
+        .preview-section h3 { font-size: 1rem; margin-bottom: 12px; color: #475569; }
+        .preview-frame { width: 100%; height: 500px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        footer { margin-top: 40px; color: #94a3b8; font-size: 0.8rem; }
+        .cdn-error { display: none; margin-top: 16px; padding: 16px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>CCP Print Tool</h1>
+    <p class="subtitle">Standalone browser version &mdash; no server required</p>
+
+    <div class="cdn-error" id="cdnError">
+        Required libraries (jsPDF/JsBarcode) failed to load. Please check your internet connection and reload.
+    </div>
+
+    <div class="container">
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">&#128196;</div>
+            <strong>Drop XML file here or click to browse</strong>
+            <p>Accepts TradenetResponse XML (.xml)</p>
+            <div class="file-name" id="fileName"></div>
+            <div class="file-size" id="fileSize"></div>
+        </div>
+        <input type="file" id="fileInput" accept=".xml,application/xml,text/xml">
+        <button class="btn" id="generateBtn" disabled>Generate CCP PDF</button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-label">
+                <span id="progressStage">Processing...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <div class="preview-section" id="previewSection">
+            <h3>Generated CCP</h3>
+            <iframe class="preview-frame" id="previewFrame"></iframe>
+            <a class="btn btn-success" id="downloadBtn" download>Download PDF</a>
+        </div>
+    </div>
+
+    <footer>CCP Print Tool v1.0.0 (Standalone) &mdash; GTNFE 5 Compliant</footer>
+
+    <script>
+    // ============================================================
+    // CDN CHECK
+    // ============================================================
+    window.addEventListener('load', function() {
+        if (typeof window.jspdf === 'undefined' || typeof JsBarcode === 'undefined') {
+            document.getElementById('cdnError').style.display = 'block';
+            document.getElementById('generateBtn').disabled = true;
+        }
+    });
+
+    // ============================================================
+    // CONSTANTS
+    // ============================================================
+    const LINE_WIDTH = 80;
+    const MAX_ITEMS_PER_PAGE = 3;
+    const SEPARATOR_LINE = '-'.repeat(LINE_WIDTH);
+
+    const PAGE_WIDTH_MM = 210;
+    const PAGE_HEIGHT_MM = 297;
+    const MARGIN_MM = 10;
+    const FONT_SIZE_PT = 9.5;
+    const LINE_HEIGHT_MM = FONT_SIZE_PT * 0.3528 * 1.4;
+    const USABLE_WIDTH_MM = PAGE_WIDTH_MM - 2 * MARGIN_MM;
+
+    const BARCODE_X_MM = 145;
+    const BARCODE_Y_MM = 10;
+    const BARCODE_W_MM = 55;
+    const BARCODE_H_MM = 12;
+
+    // ============================================================
+    // XML PARSER
+    // ============================================================
+    const NS = {
+        tn: 'urn:crimsonlogic:tn:schema:xsd:TradenetResponse',
+        cbc: 'urn:crimsonlogic:tn:schema:xsd:CommonBasicComponents-2',
+        cac: 'urn:crimsonlogic:tn:schema:xsd:CommonAggregateComponents-2',
+        ipt: 'urn:crimsonlogic:tn:schema:xsd:InPayment',
+        inp: 'urn:crimsonlogic:tn:schema:xsd:InNonPayment',
+        out: 'urn:crimsonlogic:tn:schema:xsd:OutwardDeclaration',
+        tnp: 'urn:crimsonlogic:tn:schema:xsd:TranshipmentMovement',
+    };
+
+    const MESSAGE_FAMILIES = {
+        InPaymentPermit: 'ipt',
+        InNonPaymentPermit: 'inp',
+        OutwardDeclarationPermit: 'out',
+        TranshipmentMovementPermit: 'tnp',
+    };
+
+    const MSG_TYPE_DESC = {
+        IPTDEC: 'IN-PAYMENT DECLARATION', IPTUPD: 'IN-PAYMENT UPDATE',
+        IPTPMT: 'IN-PAYMENT PERMIT', IPTUPT: 'IN-PAYMENT UPDATED PERMIT',
+        INPDEC: 'IN-NON-PAYMENT DECLARATION', INPUPD: 'IN-NON-PAYMENT UPDATE',
+        INPPMT: 'IN-NON-PAYMENT PERMIT', INPUPT: 'IN-NON-PAYMENT UPDATED PERMIT',
+        OUTDEC: 'OUTWARD DECLARATION', OUTUPD: 'OUTWARD UPDATE',
+        OUTPMT: 'OUTWARD PERMIT', OUTUPT: 'OUTWARD UPDATED PERMIT',
+        TNPDEC: 'TRANSHIPMENT/MOVEMENT DECLARATION', TNPUPD: 'TRANSHIPMENT/MOVEMENT UPDATE',
+        TNPPMT: 'TRANSHIPMENT/MOVEMENT PERMIT', TNPUPT: 'TRANSHIPMENT/MOVEMENT UPDATED PERMIT',
+    };
+
+    const DEC_TYPE_DESC = {
+        GST: 'GOODS AND SERVICES TAX', DUT: 'DUTY', DNG: 'DANGEROUS GOODS',
+        BKT: 'BLANKET', APS: 'APPROVED PREMISES/SCHEME', GTR: 'GOVT TO GOVT TRANSFER',
+        SHO: 'SHUT-OUT', DES: 'DESTRUCTION', REX: 'RE-EXPORT',
+        SFZ: 'STORING IN FREE TRADE ZONE', TCS: 'TEMPORARY CONSIGNMENT STORES',
+        TCR: 'TRANSHIPMENT CARGO REMOVAL', TCE: 'TEMPORARY EXHIBITION',
+        TCO: 'TEMPORARY OUTWARD', TCI: 'TRANSHIPMENT CARGO IN',
+        DRT: 'DUTY (OUTWARD)', TTI: 'THROUGH TRANSIT INWARD',
+        TTF: 'THROUGH TRANSIT FORWARD', IGM: 'INWARD GATEWAY MOVEMENT',
+        REM: 'REMOVAL', BRE: 'BONDED RE-EXPORT',
+    };
+
+    function parseXML(xmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlText, 'application/xml');
+        if (doc.querySelector('parsererror')) {
+            throw new Error('Invalid XML: ' + doc.querySelector('parsererror').textContent.substring(0, 100));
+        }
+
+        const permit = {
+            permit_number: '', message_type: '', declaration_type: '',
+            urn: { entity_id: '', date: '', sequence: '' },
+            validity_period: { start_date: '', end_date: '' },
+            importer: { entity_id: '', name: '', address_line1: '' },
+            exporter: { entity_id: '', name: '', address_line1: '' },
+            handling_agent: { entity_id: '', name: '', address_line1: '' },
+            inward_carrier_agent: { entity_id: '', name: '', address_line1: '' },
+            outward_carrier_agent: { entity_id: '', name: '', address_line1: '' },
+            declaring_agent: { entity_id: '', name: '' },
+            declarant: { code: '', name: '', telephone: '' },
+            cargo: {
+                packing_type: '', packing_type_description: '',
+                release_location_name: '', receipt_location_name: '',
+                total_gross_weight: '', total_gross_weight_unit: '',
+                total_outer_pack: '', total_outer_pack_unit: '',
+            },
+            transport: {
+                inward: { mode_code: '', conveyance_reference: '', mawb_oucr_obl: '', transport_identifier: '' },
+                outward: { mode_code: '', conveyance_reference: '', mawb_oucr_obl: '', transport_identifier: '' },
+                arrival_date: '', departure_date: '',
+                loading_port: '', discharge_port: '', final_destination_country: '',
+            },
+            items: [],
+            summary: {
+                total_cif_fob_value: '', total_gst_amount: '', total_excise_duty: '',
+                total_customs_duty: '', total_other_tax: '', total_amount_payable: '',
+            },
+            ca_conditions: [], sc_conditions: [],
+            licence_numbers: [], cpc_codes: [], containers: [],
+        };
+
+        // Find permit element
+        let permitEl = null;
+        let familyNs = '';
+        for (const [tag, prefix] of Object.entries(MESSAGE_FAMILIES)) {
+            const ns = NS[prefix];
+            const els = doc.getElementsByTagNameNS(ns, tag);
+            if (els.length > 0) { permitEl = els[0]; familyNs = ns; break; }
+        }
+        if (!permitEl) throw new Error('No permit element found in XML');
+
+        // Find Declaration
+        const declEls = permitEl.getElementsByTagNameNS(familyNs, 'Declaration');
+        const declaration = declEls.length > 0 ? declEls[0] : null;
+
+        if (declaration) {
+            // Header
+            const headers = declaration.getElementsByTagNameNS(familyNs, 'Header');
+            if (headers.length > 0) {
+                const header = headers[0];
+                permit.message_type = getTextNS(header, NS.cbc, 'CommonAccessReference');
+                permit.declaration_type = getTextNS(header, NS.cbc, 'DeclarationType');
+                const urnEl = getElNS(header, NS.cac, 'UniqueReferenceNumber');
+                if (urnEl) {
+                    permit.urn.entity_id = getTextNS(urnEl, NS.cbc, 'ID');
+                    permit.urn.date = getTextNS(urnEl, NS.cbc, 'Date');
+                    permit.urn.sequence = getTextNS(urnEl, NS.cbc, 'SequenceNumeric');
+                }
+            }
+
+            // Cargo
+            const cargoEls = declaration.getElementsByTagNameNS(familyNs, 'Cargo');
+            if (cargoEls.length > 0) {
+                const cargo = cargoEls[0];
+                permit.cargo.packing_type = getTextNS(cargo, NS.cbc, 'CargoPackingType');
+                const relEl = getElNS(cargo, NS.cac, 'ReleaseLocation');
+                if (relEl) permit.cargo.release_location_name = getTextNS(relEl, NS.cbc, 'LocationName');
+                const recEl = getElNS(cargo, NS.cac, 'ReceiptLocation');
+                if (recEl) permit.cargo.receipt_location_name = getTextNS(recEl, NS.cbc, 'LocationName');
+            }
+
+            // Transport
+            const transEls = declaration.getElementsByTagNameNS(familyNs, 'Transport');
+            if (transEls.length > 0) {
+                const trans = transEls[0];
+                const inEl = getElNS(trans, NS.cac, 'InwardTransport');
+                if (inEl) {
+                    const means = getElNS(inEl, NS.cac, 'TransportMeans');
+                    if (means) {
+                        const mode = getElNS(means, NS.cac, 'TransportMode');
+                        if (mode) {
+                            permit.transport.inward.mode_code = getTextNS(mode, NS.cbc, 'ModeCode');
+                            permit.transport.inward.conveyance_reference = getTextNS(mode, NS.cbc, 'ConveyanceReferenceNumber');
+                        }
+                        permit.transport.inward.mawb_oucr_obl = getTextNS(means, NS.cbc, 'MAWBOUCROBLNumber');
+                    }
+                    permit.transport.arrival_date = getTextNS(inEl, NS.cbc, 'ArrivalDate');
+                    permit.transport.loading_port = getTextNS(inEl, NS.cbc, 'LoadingPort');
+                }
+                const outEl = getElNS(trans, NS.cac, 'OutwardTransport');
+                if (outEl) {
+                    const means = getElNS(outEl, NS.cac, 'TransportMeans');
+                    if (means) {
+                        const mode = getElNS(means, NS.cac, 'TransportMode');
+                        if (mode) {
+                            permit.transport.outward.mode_code = getTextNS(mode, NS.cbc, 'ModeCode');
+                            permit.transport.outward.conveyance_reference = getTextNS(mode, NS.cbc, 'ConveyanceReferenceNumber');
+                        }
+                        permit.transport.outward.mawb_oucr_obl = getTextNS(means, NS.cbc, 'MAWBOUCROBLNumber');
+                    }
+                    permit.transport.departure_date = getTextNS(outEl, NS.cbc, 'DepartureDate');
+                    permit.transport.discharge_port = getTextNS(outEl, NS.cbc, 'DischargePort');
+                }
+            }
+
+            // Parties
+            const partyEls = declaration.getElementsByTagNameNS(familyNs, 'Party');
+            if (partyEls.length > 0) {
+                const partySection = partyEls[0];
+                const decParty = getElNS(partySection, NS.cac, 'DeclarantParty');
+                if (decParty) {
+                    const person = getElNS(decParty, NS.cac, 'PersonInformation');
+                    if (person) {
+                        permit.declarant.code = getTextNS(person, NS.cbc, 'CodeValue');
+                        permit.declarant.name = getTextNS(person, NS.cbc, 'Name');
+                    }
+                    permit.declarant.telephone = getTextNS(decParty, NS.cbc, 'Telephone');
+                }
+                const daParty = getElNS(partySection, NS.cac, 'DeclaringAgentParty');
+                if (daParty) permit.declaring_agent = parsePartyEl(daParty);
+                const impParty = getElNS(partySection, NS.cac, 'ImporterParty');
+                if (impParty) permit.importer = parsePartyEl(impParty);
+                const expParty = getElNS(partySection, NS.cac, 'ExporterParty');
+                if (expParty) permit.exporter = parsePartyEl(expParty);
+                const icaParty = getElNS(partySection, NS.cac, 'InwardCarrierAgentParty');
+                if (icaParty) permit.inward_carrier_agent = parsePartyEl(icaParty);
+                const ocaParty = getElNS(partySection, NS.cac, 'OutwardCarrierAgentParty');
+                if (ocaParty) permit.outward_carrier_agent = parsePartyEl(ocaParty);
+                const haParty = getElNS(partySection, NS.cac, 'HandlingAgentParty');
+                if (haParty) permit.handling_agent = parsePartyEl(haParty);
+            }
+
+            // Items
+            const itemEls = declaration.getElementsByTagNameNS(familyNs, 'Item');
+            for (let i = 0; i < itemEls.length; i++) {
+                const el = itemEls[i];
+                const item = {
+                    sequence_number: parseInt(getTextNS(el, NS.cbc, 'ItemSequenceNumeric')) || 0,
+                    hs_code: getTextNS(el, NS.cbc, 'ItemHarmonizedSystemCode'),
+                    goods_description: getTextNS(el, NS.cbc, 'GoodsDescription'),
+                    origin_country: getTextNS(el, NS.cbc, 'OriginCountry'),
+                    brand_name: getTextNS(el, NS.cbc, 'BrandName'),
+                    model: getTextNS(el, NS.cbc, 'ModelDescription'),
+                    shipping_marks: '',
+                    in_hawb_hucr_hbl: getTextNS(el, NS.cbc, 'InHAWBHUCRHBLNumber'),
+                    in_mawb_oucr_obl: getTextNS(el, NS.cbc, 'InMAWBOUCROBLNumber'),
+                    out_hawb_hucr_hbl: getTextNS(el, NS.cbc, 'OutHAWBHUCRHBLNumber'),
+                    out_mawb_oucr_obl: getTextNS(el, NS.cbc, 'OutMAWBOUCROBLNumber'),
+                    hs_quantity: '', hs_quantity_unit: '',
+                    cif_fob_value: '', lsp_value: '', gst_amount: '',
+                    duty_quantity: '', duty_quantity_unit: '',
+                    unit_price: '', unit_price_currency: '',
+                    excise_duty: '', customs_duty: '', other_tax: '',
+                    current_lot_no: '', previous_lot_no: '',
+                    manufacturer_name: '',
+                    outer_pack_qty: '', outer_pack_unit: '',
+                    inner_pack_qty: '', inner_pack_unit: '',
+                    casc_products: [],
+                };
+
+                const marksEl = getElNS(el, NS.cac, 'ShippingMarksInformation');
+                if (marksEl) item.shipping_marks = getTextNS(marksEl, NS.cbc, 'ShippingMarks');
+
+                const qtyEl = getElNS(el, NS.cac, 'ItemQuantity');
+                if (qtyEl) {
+                    const hsQtyEl = qtyEl.getElementsByTagNameNS(NS.cbc, 'HarmonizedSystemQuantity')[0];
+                    if (hsQtyEl) {
+                        item.hs_quantity = (hsQtyEl.textContent || '').trim();
+                        item.hs_quantity_unit = hsQtyEl.getAttribute('unitCode') || '';
+                    }
+                }
+
+                const tvEl = getElNS(el, NS.cac, 'TransactionValue');
+                if (tvEl) {
+                    item.cif_fob_value = getTextNS(tvEl, NS.cbc, 'ItemCIFFOBValue');
+                    item.lsp_value = getTextNS(tvEl, NS.cbc, 'LastSellingPriceValue');
+                    const upEl = getElNS(tvEl, NS.cac, 'UnitPriceValue');
+                    if (upEl) {
+                        const amtEl = upEl.getElementsByTagNameNS(NS.cbc, 'Amount')[0];
+                        if (amtEl) {
+                            item.unit_price = (amtEl.textContent || '').trim();
+                            item.unit_price_currency = amtEl.getAttribute('currencyID') || '';
+                        }
+                    }
+                }
+
+                const tariffEl = getElNS(el, NS.cac, 'Tariff');
+                if (tariffEl) {
+                    const gstEl = getElNS(tariffEl, NS.cac, 'GoodsAndServicesTax');
+                    if (gstEl) item.gst_amount = getTextNS(gstEl, NS.cbc, 'GoodsAndServicesTaxAmount');
+                    const cusEl = getElNS(tariffEl, NS.cac, 'CustomsDuty');
+                    if (cusEl) item.customs_duty = getTextNS(cusEl, NS.cbc, 'CustomsDutyAmount');
+                    const excEl = getElNS(tariffEl, NS.cac, 'ExciseDuty');
+                    if (excEl) item.excise_duty = getTextNS(excEl, NS.cbc, 'ExciseDutyAmount');
+                }
+
+                const cascEls = el.getElementsByTagNameNS(NS.cbc, 'CASCProductCode');
+                for (let c = 0; c < cascEls.length; c++) {
+                    const cascParent = cascEls[c].parentElement;
+                    const casc = { code: cascEls[c].textContent.trim(), quantity: '', unit: '' };
+                    const cqEl = cascParent.getElementsByTagNameNS(NS.cbc, 'CASCProductQuantity')[0];
+                    if (cqEl) { casc.quantity = cqEl.textContent.trim(); casc.unit = cqEl.getAttribute('unitCode') || ''; }
+                    item.casc_products.push(casc);
+                }
+
+                permit.items.push(item);
+            }
+
+            // Summary
+            const sumEls = declaration.getElementsByTagNameNS(familyNs, 'Summary');
+            if (sumEls.length > 0) {
+                const sum = sumEls[0];
+                permit.summary.total_cif_fob_value = getTextNS(sum, NS.cbc, 'TotalCIFFOBValue');
+                const opEl = sum.getElementsByTagNameNS(NS.cbc, 'TotalOuterPack')[0];
+                if (opEl) {
+                    permit.cargo.total_outer_pack = opEl.textContent.trim();
+                    permit.cargo.total_outer_pack_unit = opEl.getAttribute('unitCode') || '';
+                }
+                const gwEl = sum.getElementsByTagNameNS(NS.cbc, 'TotalGrossWeight')[0];
+                if (gwEl) {
+                    permit.cargo.total_gross_weight = gwEl.textContent.trim();
+                    permit.cargo.total_gross_weight_unit = gwEl.getAttribute('unitCode') || '';
+                }
+                const ttEl = getElNS(sum, NS.cac, 'TotalTariff');
+                if (ttEl) {
+                    permit.summary.total_gst_amount = getTextNS(ttEl, NS.cbc, 'TotalGoodsAndServicesTaxAmount');
+                    permit.summary.total_amount_payable = getTextNS(ttEl, NS.cbc, 'TotalAmountPayable');
+                    permit.summary.total_customs_duty = getTextNS(ttEl, NS.cbc, 'TotalCustomsDutyAmount');
+                    permit.summary.total_excise_duty = getTextNS(ttEl, NS.cbc, 'TotalExciseDutyAmount');
+                    permit.summary.total_other_tax = getTextNS(ttEl, NS.cbc, 'TotalOtherTaxAmount');
+                }
+            }
+        }
+
+        // Permit section
+        const permitSections = permitEl.getElementsByTagNameNS(NS.cac, 'Permit');
+        if (permitSections.length > 0) {
+            const ps = permitSections[0];
+            permit.permit_number = getTextNS(ps, NS.cbc, 'PermitNumber');
+            const vpEl = getElNS(ps, NS.cac, 'PermitValidityPeriod');
+            if (vpEl) {
+                permit.validity_period.start_date = getTextNS(vpEl, NS.cbc, 'StartDate');
+                permit.validity_period.end_date = getTextNS(vpEl, NS.cbc, 'EndDate');
+            }
+            const caEls = ps.getElementsByTagNameNS(NS.cac, 'CAApprovalCondition');
+            for (let i = 0; i < caEls.length; i++) {
+                permit.ca_conditions.push({
+                    agency_code: getTextNS(caEls[i], NS.cbc, 'AgencyCode'),
+                    condition_code: getTextNS(caEls[i], NS.cbc, 'ConditionCode'),
+                    description: getTextNS(caEls[i], NS.cbc, 'ConditionDescription'),
+                });
+            }
+            const scEls = ps.getElementsByTagNameNS(NS.cac, 'SCApprovalCondition');
+            for (let i = 0; i < scEls.length; i++) {
+                permit.sc_conditions.push({
+                    agency_code: getTextNS(scEls[i], NS.cbc, 'AgencyCode'),
+                    condition_code: getTextNS(scEls[i], NS.cbc, 'ConditionCode'),
+                    description: getTextNS(scEls[i], NS.cbc, 'ConditionDescription'),
+                });
+            }
+        }
+
+        if (!permit.permit_number) throw new Error('Missing permit number in XML');
+        return permit;
+    }
+
+    function getElNS(parent, ns, localName) {
+        const els = parent.getElementsByTagNameNS(ns, localName);
+        return els.length > 0 ? els[0] : null;
+    }
+
+    function getTextNS(parent, ns, localName) {
+        const el = getElNS(parent, ns, localName);
+        return el ? (el.textContent || '').trim() : '';
+    }
+
+    function parsePartyEl(el) {
+        const party = { entity_id: '', name: '', address_line1: '' };
+        const idEl = getElNS(el, NS.cac, 'PartyIdentification');
+        if (idEl) party.entity_id = getTextNS(idEl, NS.cbc, 'ID');
+        const nameEl = getElNS(el, NS.cac, 'PartyName');
+        if (nameEl) party.name = getTextNS(nameEl, NS.cbc, 'Name');
+        const addrEl = getElNS(el, NS.cac, 'PartyAddress');
+        if (addrEl) party.address_line1 = getTextNS(addrEl, NS.cbc, 'StreetName');
+        return party;
+    }
+
+    // ============================================================
+    // CCP FORMATTER
+    // ============================================================
+    function line(text) { return (text || '').substring(0, LINE_WIDTH).padEnd(LINE_WIDTH); }
+    function fmtDate(d) { return d && d.length >= 8 ? `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}` : d || ''; }
+    function fmtAmt(a) {
+        if (!a) return 'S$0.00';
+        const v = parseFloat(a);
+        return isNaN(v) ? 'S$' + a : 'S$' + v.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function formatCCP(permit) {
+        const totalPages = calcTotalPages(permit);
+        const pages = [];
+        pages.push(formatHeaderPage(permit, 1, totalPages));
+        pages.push(...formatConsignmentPages(permit, totalPages));
+        pages.push(formatFinalPage(permit, pages.length + 1, totalPages));
+        return pages;
+    }
+
+    function calcTotalPages(permit) {
+        const itemPages = Math.max(1, Math.ceil(permit.items.length / MAX_ITEMS_PER_PAGE));
+        return 1 + itemPages + 1;
+    }
+
+    function formatHeaderPage(p, pageNum, totalPages) {
+        const lines = [];
+        for (let i = 0; i < 5; i++) lines.push(line(''));
+        lines.push(line(' '.repeat(56) + `PERMIT NO : ${p.permit_number}`));
+        for (let i = 0; i < 4; i++) lines.push(line(''));
+
+        const pi = `PG : ${String(pageNum).padStart(2)} OF ${String(totalPages).padStart(2)}`;
+        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT' + ' '.repeat(8) + pi));
+        lines.push(line('')); lines.push(line(''));
+
+        lines.push(line(`MESSAGE TYPE      : ${MSG_TYPE_DESC[p.message_type] || p.message_type}`));
+        lines.push(line(`DECLARATION TYPE  : ${DEC_TYPE_DESC[p.declaration_type] || p.declaration_type}`));
+        lines.push(line('')); lines.push(line(''));
+
+        const vs = fmtDate(p.validity_period.start_date);
+        const ve = fmtDate(p.validity_period.end_date);
+        lines.push(line(` ${'IMPORTER:'.padEnd(35)}VALIDITY PERIOD      : ${vs} -`));
+        lines.push(line(` ${p.importer.name.substring(0,35).padEnd(35)}                       ${ve}`));
+        lines.push(line(` ${p.importer.address_line1.substring(0,35).padEnd(35)}`));
+        const wt = `${p.cargo.total_gross_weight}/${p.cargo.total_gross_weight_unit}`;
+        lines.push(line(` ${p.importer.entity_id.substring(0,17).padEnd(35)}TOTAL GROSS WT/UNIT  : ${wt}`));
+
+        const pk = `${p.cargo.total_outer_pack}/${p.cargo.total_outer_pack_unit}`;
+        lines.push(line(` ${'EXPORTER:'.padEnd(35)}TOTAL OUTER PACK/UNIT: ${pk}`));
+        lines.push(line(` ${p.exporter.name.substring(0,35).padEnd(35)}TOT EXCISE DUT PAYABLE : ${fmtAmt(p.summary.total_excise_duty)}`));
+        lines.push(line(` ${p.exporter.address_line1.substring(0,35).padEnd(35)}TOT CUSTOMS DUT PAYABLE: ${fmtAmt(p.summary.total_customs_duty)}`));
+        lines.push(line(` ${p.exporter.entity_id.substring(0,17).padEnd(35)}TOT OTHER TAX PAYABLE  : ${fmtAmt(p.summary.total_other_tax)}`));
+
+        lines.push(line(` ${'HANDLING AGENT:'.padEnd(35)}TOTAL GST AMT          : ${fmtAmt(p.summary.total_gst_amount)}`));
+        lines.push(line(` ${p.handling_agent.name.substring(0,35).padEnd(35)}TOTAL AMOUNT PAYABLE   : ${fmtAmt(p.summary.total_amount_payable)}`));
+        lines.push(line(` ${p.handling_agent.address_line1.substring(0,35).padEnd(35)}CARGO PACKING TYPE: ${(p.cargo.packing_type_description||'').substring(0,23)}`));
+        lines.push(line(` ${p.handling_agent.entity_id.substring(0,30).padEnd(35)}IN TRANSPORT IDENTIFIER:`));
+        lines.push(line(` ${''.padEnd(35)}${(p.transport.inward.transport_identifier||'').substring(0,35)}`));
+
+        lines.push(line(` ${'PORT OF LOADING/NEXT PORT OF CALL:'.padEnd(35)}CONVEYANCE REFERENCE NO: ${p.transport.inward.conveyance_reference.substring(0,17)}`));
+        lines.push(line(` ${p.transport.loading_port.substring(0,35).padEnd(35)}OBL/MAWB NO:`));
+        lines.push(line(` ${'PORT OF DISCHARGE/FINAL PORT OF CALL'.padEnd(35)}${p.transport.inward.mawb_oucr_obl.substring(0,35)}`));
+        lines.push(line(` ${p.transport.discharge_port.substring(0,35).padEnd(35)}ARRIVAL DATE         : ${fmtDate(p.transport.arrival_date)}`));
+
+        lines.push(line(` ${'COUNTRY OF FINAL DESTINATION:'.padEnd(35)}OU TRANSPORT IDENTIFIER:`));
+        lines.push(line(` ${(p.transport.final_destination_country||'').substring(0,35).padEnd(35)}${(p.transport.outward.transport_identifier||'').substring(0,35)}`));
+        lines.push(line(` ${'INWARD CARRIER AGENT:'.padEnd(35)}CONVEYANCE REFERENCE NO: ${p.transport.outward.conveyance_reference.substring(0,17)}`));
+        lines.push(line(` ${p.inward_carrier_agent.name.substring(0,35).padEnd(35)}OBL/MAWB/UCR NO:`));
+        lines.push(line(` ${p.inward_carrier_agent.address_line1.substring(0,35).padEnd(35)}${p.transport.outward.mawb_oucr_obl.substring(0,35)}`));
+        lines.push(line(` ${p.inward_carrier_agent.entity_id.substring(0,30).padEnd(35)}DEPARTURE DATE       : ${fmtDate(p.transport.departure_date)}`));
+
+        lines.push(line(` ${'OUTWARD CARRIER AGENT:'.padEnd(35)}`));
+        const cert = p.licence_numbers.length > 0 ? p.licence_numbers[0] : '';
+        lines.push(line(` ${p.outward_carrier_agent.name.substring(0,35).padEnd(35)}CERTIFICATE NO: ${cert.substring(0,17)}`));
+        lines.push(line(` ${p.outward_carrier_agent.address_line1.substring(0,35).padEnd(35)}`));
+        lines.push(line(` ${p.outward_carrier_agent.entity_id.substring(0,30).padEnd(35)}`));
+
+        lines.push(line(` ${'PLACE OF RELEASE:'.padEnd(35)}PLACE OF RECEIPT:`));
+        lines.push(line(` ${p.cargo.release_location_name.substring(0,32).padEnd(35)}${p.cargo.receipt_location_name.substring(0,32)}`));
+        lines.push(line('')); lines.push(line(''));
+
+        lines.push(line(` ${'LICENCE NO:'.padEnd(35)}CUSTOMS PROCEDURE CODE (CPC) :`));
+        for (let i = 0; i < 5; i++) {
+            const lic = (p.licence_numbers[i] || '').substring(0,35);
+            const cpc = (p.cpc_codes[i] || '').substring(0,35);
+            lines.push(line(` ${lic.padEnd(35)}${cpc}`));
+        }
+
+        lines.push(line(SEPARATOR_LINE));
+        lines.push(line(` UNIQUE REF : ${p.urn.entity_id} ${p.urn.date} ${p.urn.sequence}`));
+        return lines;
+    }
+
+    function formatConsignmentPages(permit, totalPages) {
+        const pages = [];
+        const items = permit.items;
+        for (let start = 0; start < items.length; start += MAX_ITEMS_PER_PAGE) {
+            const pageItems = items.slice(start, start + MAX_ITEMS_PER_PAGE);
+            pages.push(formatConsignmentPage(permit, pageItems, pages.length + 2, totalPages));
+        }
+        if (pages.length === 0) pages.push(formatConsignmentPage(permit, [], 2, totalPages));
+        return pages;
+    }
+
+    function formatConsignmentPage(permit, items, pageNum, totalPages) {
+        const lines = [];
+        const pi = `PG : ${String(pageNum).padStart(2)} OF ${String(totalPages).padStart(2)}`;
+        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT' + ' '.repeat(8) + pi));
+        lines.push(line(` PERMIT NO    : ${permit.permit_number.padEnd(11)}     ======================`));
+        lines.push(line(' '.repeat(38) + '(CONTINUATION PAGE)'));
+        lines.push(line(''));
+        lines.push(line(' CONSIGNMENT DETAILS'));
+        lines.push(line(SEPARATOR_LINE));
+        lines.push(line(' S/NO HS CODE   CURRENT LOT NO            PREVIOUS LOT NO'));
+        lines.push(line(' MARKING  CTY OF ORIGIN  BRAND NAME        MODEL'));
+        lines.push(line(' IN MAWB/OUCR/OBL                         OUT MAWB/OUCR/OBL'));
+        lines.push(line(' IN HAWB/HUCR/HBL                         OUT HAWB/HUCR/HBL'));
+        lines.push(line(' PACKING/GOODS DESCRIPTION                HS QUANTITY & UNIT'));
+        lines.push(line('                                           CIF/FOB VALUE (S$)'));
+        lines.push(line('                                           LSP VALUE (S$)'));
+        lines.push(line('                                           GST AMOUNT (S$)'));
+        lines.push(line('                                           DUT QTY/WT/VOL & UNIT'));
+        lines.push(line('                                           UNIT PRICE & CODE'));
+        lines.push(line('                                           EXCISE DUTY PAYABLE (S$)'));
+        lines.push(line('                                           CUSTOMS DUTY PAYABLE(S$)'));
+        lines.push(line('                                           OTHER TAX PAYABLE(S$)'));
+        lines.push(line(' MANUFACTURER\'S NAME'));
+        lines.push(line(SEPARATOR_LINE));
+
+        for (const item of items) {
+            lines.push(...formatItem(item));
+            lines.push(line(SEPARATOR_LINE));
+        }
+
+        lines.push(line(` UNIQUE REF : ${permit.urn.entity_id} ${permit.urn.date} ${permit.urn.sequence}`));
+        return lines;
+    }
+
+    function formatItem(item) {
+        const lines = [];
+        const sno = String(item.sequence_number).padStart(5);
+        lines.push(line(` ${sno}  ${item.hs_code.substring(0,10).padEnd(10)}  ${(item.current_lot_no||'').substring(0,30).padEnd(30)}${item.previous_lot_no||''}`));
+        const marks = (item.shipping_marks||'').substring(0,4);
+        lines.push(line(` ${marks.padEnd(4)}  ${item.origin_country.substring(0,2).padEnd(2)}   ${item.brand_name.substring(0,35).padEnd(35)}${item.model}`));
+        lines.push(line(` ${(item.in_mawb_oucr_obl||'').substring(0,35).padEnd(40)}${item.out_mawb_oucr_obl||''}`));
+        lines.push(line(` ${(item.in_hawb_hucr_hbl||'').substring(0,35).padEnd(40)}${item.out_hawb_hucr_hbl||''}`));
+
+        const packing = `${item.outer_pack_qty||''} ${item.outer_pack_unit||''} ${item.inner_pack_qty||''} ${item.inner_pack_unit||''}`.trim();
+        const hsQty = `${item.hs_quantity} ${item.hs_quantity_unit}`.trim();
+        lines.push(line(` ${packing.padEnd(20)}                                   ${hsQty.substring(0,20)}`));
+
+        lines.push(line(` ${item.goods_description.substring(0,50).padEnd(50)}${(item.cif_fob_value||'').padStart(14)}`));
+        lines.push(line(` ${''.padEnd(50)}${(item.lsp_value||'').padStart(14)}`));
+        lines.push(line(` ${''.padEnd(50)}${(item.gst_amount||'').padStart(14)}`));
+
+        const dutyQty = `${item.duty_quantity||''} ${item.duty_quantity_unit||''}`.trim();
+        lines.push(line(` ${''.padEnd(50)}${dutyQty.substring(0,20).padStart(20)}`));
+        const unitPrice = `${item.unit_price||''} ${item.unit_price_currency||''}`.trim();
+        lines.push(line(` ${''.padEnd(50)}${unitPrice.substring(0,20).padStart(20)}`));
+        lines.push(line(` ${''.padEnd(50)}${(item.excise_duty||'').padStart(14)}`));
+        lines.push(line(` ${''.padEnd(50)}${(item.customs_duty||'').padStart(14)}`));
+        lines.push(line(` ${''.padEnd(50)}${(item.other_tax||'').padStart(14)}`));
+        lines.push(line(` ${(item.manufacturer_name||'').substring(0,50)}`));
+
+        for (const casc of item.casc_products) {
+            lines.push(line(`        ${casc.code.padEnd(17)}                       ${casc.quantity} ${casc.unit}`));
+        }
+        return lines;
+    }
+
+    function formatFinalPage(permit, pageNum, totalPages) {
+        const lines = [];
+        const pi = `PG : ${String(pageNum).padStart(2)} OF ${String(totalPages).padStart(2)}`;
+        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT' + ' '.repeat(8) + pi));
+        lines.push(line(` PERMIT NO    : ${permit.permit_number.padEnd(11)}     ======================`));
+        lines.push(line(' '.repeat(38) + '(CONTINUATION PAGE)'));
+        lines.push(line(''));
+
+        lines.push(line(SEPARATOR_LINE));
+        lines.push(line(' NO UNAUTHORISED ADDITION/AMENDMENT TO THIS PERMIT MAY BE MADE AFTER APPROVAL'));
+        lines.push(line(SEPARATOR_LINE));
+
+        lines.push(line(` NAME OF COMPANY: ${permit.declaring_agent.name.substring(0,50)}`));
+        lines.push(line(` DECLARANT NAME : ${permit.declarant.name.substring(0,50)}`));
+        lines.push(line(` DECLARANT CODE : ${permit.declarant.code.substring(0,17)}`));
+        lines.push(line(` TEL NO         : ${permit.declarant.telephone.substring(0,25)}`));
+
+        lines.push(line(SEPARATOR_LINE));
+        lines.push(...formatConditionsSection(permit.ca_conditions, permit.sc_conditions));
+        return lines;
+    }
+
+    // ============================================================
+    // CONDITION FORMATTER
+    // ============================================================
+    function formatConditionsSection(ca, sc) {
+        const lines = [];
+        lines.push(line('-'.repeat(LINE_WIDTH)));
+        lines.push(line('CONTROLLING AGENCY/CUSTOMS CONDITIONS'));
+        for (const c of ca) lines.push(...formatCondition(c));
+        for (const c of sc) lines.push(...formatCondition(c));
+        return lines;
+    }
+
+    function formatCondition(cond) {
+        const lines = [];
+        const chunks = splitOccurrences(cond.description);
+        for (let i = 0; i < chunks.length; i++) {
+            const code = i === 0 ? cond.condition_code : '----';
+            lines.push(...formatOccurrence(code, chunks[i]));
+        }
+        return lines;
+    }
+
+    function splitOccurrences(desc) {
+        if (desc.length <= 512) return [desc];
+        const chunks = [];
+        let rem = desc;
+        while (rem) {
+            if (rem.length <= 512) { chunks.push(rem); break; }
+            chunks.push(rem.substring(0, 512));
+            rem = rem.substring(512);
+        }
+        return chunks;
+    }
+
+    function formatOccurrence(code, text) {
+        const lines = [];
+        const prefix = code.padEnd(4) + ' - ';
+        const textLines = wrapWords(text);
+        for (let i = 0; i < textLines.length; i++) {
+            if (i === 0) {
+                lines.push(line(prefix + textLines[i].padEnd(73)));
+            } else {
+                lines.push(line(textLines[i].padEnd(80)));
+            }
+        }
+        return lines;
+    }
+
+    function wrapWords(text) {
+        if (!text) return [''];
+        const words = text.split(/\s+/);
+        if (!words.length) return [''];
+        const lines = [];
+        let current = '';
+        let lineNum = 0;
+        for (const word of words) {
+            const maxW = lineNum === 0 ? 73 : 80;
+            if (!current) { current = word; }
+            else if (current.length + 1 + word.length <= maxW) { current += ' ' + word; }
+            else { lines.push(current); lineNum++; current = word; }
+        }
+        if (current) lines.push(current);
+        return lines;
+    }
+
+    // ============================================================
+    // PDF RENDERER
+    // ============================================================
+    function renderPDF(pages, permitNumber) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+        // Generate barcode canvas
+        let barcodeCanvas = null;
+        if (permitNumber) {
+            barcodeCanvas = document.createElement('canvas');
+            try {
+                JsBarcode(barcodeCanvas, permitNumber, {
+                    format: 'CODE128',
+                    width: 1,
+                    height: 30,
+                    displayValue: true,
+                    fontSize: 10,
+                    margin: 5,
+                    flat: true,
+                });
+            } catch (e) {
+                barcodeCanvas = null;
+            }
+        }
+
+        for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+            if (pageIdx > 0) doc.addPage();
+            doc.setFont('courier', 'normal');
+            doc.setFontSize(FONT_SIZE_PT);
+
+            if (pageIdx === 0 && barcodeCanvas) {
+                const imgData = barcodeCanvas.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', BARCODE_X_MM, BARCODE_Y_MM, BARCODE_W_MM, BARCODE_H_MM);
+            }
+
+            let y = MARGIN_MM;
+            for (const textLine of pages[pageIdx]) {
+                if (y + LINE_HEIGHT_MM > PAGE_HEIGHT_MM - MARGIN_MM) {
+                    doc.addPage();
+                    doc.setFont('courier', 'normal');
+                    doc.setFontSize(FONT_SIZE_PT);
+                    y = MARGIN_MM;
+                }
+                doc.text(textLine, MARGIN_MM, y + LINE_HEIGHT_MM * 0.75);
+                y += LINE_HEIGHT_MM;
+            }
+        }
+
+        return doc.output('blob');
+    }
+
+    // ============================================================
+    // APP CONTROLLER
+    // ============================================================
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameEl = document.getElementById('fileName');
+    const fileSizeEl = document.getElementById('fileSize');
+    const generateBtn = document.getElementById('generateBtn');
+    const statusEl = document.getElementById('status');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressStage = document.getElementById('progressStage');
+    const progressPercent = document.getElementById('progressPercent');
+    const previewSection = document.getElementById('previewSection');
+    const previewFrame = document.getElementById('previewFrame');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let selectedFile = null;
+    let currentBlobUrl = null;
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault(); uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+        if (!file.name.endsWith('.xml')) { showStatus('Please select an XML file.', 'error'); return; }
+        selectedFile = file;
+        uploadArea.classList.add('has-file');
+        fileNameEl.textContent = file.name;
+        fileSizeEl.textContent = formatBytes(file.size);
+        generateBtn.disabled = false;
+        hideStatus(); hidePreview();
+    }
+
+    generateBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        generateBtn.disabled = true;
+        hideStatus(); hidePreview();
+        progressFill.classList.remove('complete');
+        progressFill.style.width = '0%';
+        progressContainer.classList.add('visible');
+
+        try {
+            await tick(); showProgress('Reading XML file...', 10);
+            const xmlText = await selectedFile.text();
+
+            await tick(); showProgress('Parsing XML...', 30);
+            const permit = parseXML(xmlText);
+
+            await tick(); showProgress('Formatting CCP pages...', 50);
+            const pages = formatCCP(permit);
+
+            await tick(); showProgress('Rendering PDF with barcode...', 70);
+            const pdfBlob = renderPDF(pages, permit.permit_number);
+
+            await tick(); showProgress('Complete!', 100);
+            progressFill.classList.add('complete');
+
+            if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+            currentBlobUrl = URL.createObjectURL(pdfBlob);
+
+            previewFrame.src = currentBlobUrl;
+            downloadBtn.href = currentBlobUrl;
+            downloadBtn.download = `CCP_${permit.permit_number}.pdf`;
+            previewSection.classList.add('visible');
+
+            showStatus('CCP generated successfully.', 'success');
+        } catch (err) {
+            progressContainer.classList.remove('visible');
+            showStatus(err.message, 'error');
+        } finally {
+            generateBtn.disabled = false;
+        }
+    });
+
+    function tick() { return new Promise(resolve => setTimeout(resolve, 50)); }
+
+    function showProgress(stage, pct) {
+        progressStage.textContent = stage;
+        progressPercent.textContent = pct + '%';
+        progressFill.style.width = pct + '%';
+    }
+
+    function hidePreview() { previewSection.classList.remove('visible'); }
+    function showStatus(msg, type) { statusEl.textContent = msg; statusEl.className = `status ${type}`; }
+    function hideStatus() { statusEl.className = 'status'; }
+    function formatBytes(b) {
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+        return (b/1048576).toFixed(1) + ' MB';
+    }
+    </script>
+</body>
+</html>
