@@ -93,12 +93,12 @@
     <div class="container">
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">&#128196;</div>
-            <strong>Drop XML file here or click to browse</strong>
-            <p>Accepts TradenetResponse XML (.xml)</p>
+            <strong>Drop XML or JSON file here or click to browse</strong>
+            <p>Accepts TradenetResponse XML (.xml) or JSON (.json)</p>
             <div class="file-name" id="fileName"></div>
             <div class="file-size" id="fileSize"></div>
         </div>
-        <input type="file" id="fileInput" accept=".xml,application/xml,text/xml">
+        <input type="file" id="fileInput" accept=".xml,.json,application/xml,text/xml,application/json">
         <button class="btn" id="generateBtn" disabled>Generate CCP PDF</button>
 
         <div class="progress-container" id="progressContainer">
@@ -491,6 +491,132 @@
     }
 
     // ============================================================
+    // JSON PARSER
+    // ============================================================
+    const JSON_MSG_TYPE_MAP = { IPT: 'IPTPMT', INP: 'INPPMT', OUT: 'OUTPMT', TNP: 'TNPPMT' };
+
+    function parseJSON(jsonText) {
+        const raw = JSON.parse(jsonText);
+        const d = raw.details || {};
+        const outcomes = d.outcomes || [];
+        const outcome = outcomes[0] || {};
+
+        function dateToCCYYMMDD(s) {
+            if (!s) return '';
+            if (s.includes('-')) return s.split('T')[0].replace(/-/g, '');
+            return s;
+        }
+
+        const permit = {
+            permit_number: raw.permit_number || '',
+            message_type: JSON_MSG_TYPE_MAP[raw.message_type] || raw.message_type || '',
+            declaration_type: raw.declaration_type || '',
+            urn: {
+                entity_id: d.declaringEntityIdInUrn || '',
+                date: dateToCCYYMMDD(d.dateOfCreationInUrn || ''),
+                sequence: String(d.sequenceNumberInUrn || 0).padStart(4, '0'),
+            },
+            validity_period: {
+                start_date: dateToCCYYMMDD(outcome.permitValidityStartDate || ''),
+                end_date: dateToCCYYMMDD(outcome.permitValidityEndDate || ''),
+            },
+            importer: { entity_id: d.importerEntityId || '', name: d.importerName || '', address_line1: '' },
+            exporter: {
+                entity_id: d.exporterEntityId || '', name: d.exporterName || '',
+                address_line1: (d.exporterAddress || {}).streetNumberPoBox || '',
+            },
+            handling_agent: { entity_id: d.handlingAgentEntityId || '', name: d.handlingAgentName || '', address_line1: '' },
+            inward_carrier_agent: { entity_id: d.inwardCarrierAgentEntityId || '', name: d.inwardCarrierAgentName || '', address_line1: '' },
+            outward_carrier_agent: { entity_id: d.outwardCarrierAgentEntityId || '', name: d.outwardCarrierAgentName || '', address_line1: '' },
+            declaring_agent: { entity_id: d.declaringAgentEntityId || '', name: d.declaringAgentName || '' },
+            declarant: { code: d.declarantCode || '', name: d.declarantName || '', telephone: d.declarantContactNumber || '' },
+            cargo: {
+                packing_type: '', packing_type_description: '',
+                release_location_name: d.placeOfReleaseNameAddress || '',
+                receipt_location_name: d.placeOfReceiptNameAddress || '',
+                total_gross_weight: String(d.totalGrossWeight || ''),
+                total_gross_weight_unit: d.totalGrossWeightUnit || '',
+                total_outer_pack: String(d.totalOuterPack || ''),
+                total_outer_pack_unit: d.totalOuterPackUnit || '',
+            },
+            transport: {
+                inward: {
+                    mode_code: String(d.inwardModeOfTransport || ''),
+                    conveyance_reference: d.inwardConveyanceReferenceNumber || '',
+                    mawb_oucr_obl: d.inwardMawbOucrOblNumber || '',
+                    transport_identifier: d.inwardTransportId || '',
+                },
+                outward: {
+                    mode_code: String(d.outwardModeOfTransport || ''),
+                    conveyance_reference: d.outwardConveyanceReferenceNumber || '',
+                    mawb_oucr_obl: d.outwardMawbOucrOblNumber || '',
+                    transport_identifier: d.outwardTransportId || '',
+                },
+                arrival_date: dateToCCYYMMDD(d.dateOfArrival || ''),
+                departure_date: dateToCCYYMMDD(d.dateOfDeparture || ''),
+                loading_port: d.portOfLoading || d.nextPortOfCall || '',
+                discharge_port: d.portOfDischarge || '',
+                final_destination_country: d.countryOfFinalDestination || '',
+            },
+            items: (d.items || []).map(it => ({
+                sequence_number: it.sequenceNumber || 0,
+                hs_code: it.hsCode || '',
+                goods_description: it.goodsDescription || '',
+                origin_country: it.countryOfOriginOfGoods || '',
+                brand_name: it.brandName || '',
+                model: it.model || '',
+                shipping_marks: it.marksNumbers || '',
+                in_hawb_hucr_hbl: it.inwardHawbHucrHblNumber || '',
+                in_mawb_oucr_obl: it.inwardMawbOucrOblNumber || '',
+                out_hawb_hucr_hbl: it.outwardHawbHucrHblNumber || '',
+                out_mawb_oucr_obl: it.outwardMawbOucrOblNumber || '',
+                hs_quantity: String(it.hsQuantity || ''),
+                hs_quantity_unit: it.hsQuantityUnit || '',
+                cif_fob_value: String(it.itemCifFobValue || ''),
+                lsp_value: String(it.itemLspValue || ''),
+                gst_amount: String(it.gstAmount || ''),
+                excise_duty: String(it.exciseDutyAmount || ''),
+                customs_duty: String(it.customsDutyAmount || ''),
+                other_tax: String(it.otherTaxAmount || ''),
+                unit_price: String(it.unitPrice || ''),
+                unit_price_currency: it.unitPriceCurrencyCode || '',
+                current_lot_no: it.currentLotNumber || '',
+                previous_lot_no: it.previousLotNumber || '',
+                manufacturer_name: '',
+                outer_pack_qty: String(it.outerPackQuantity || ''),
+                outer_pack_unit: String(it.outerPackQuantityUnit || ''),
+                inner_pack_qty: String(it.inPackQuantity || ''),
+                inner_pack_unit: String(it.inPackQuantityUnit || ''),
+                casc_products: (it.caScProducts || []).map(c => ({ code: c.code || '', quantity: String(c.quantity || ''), unit: c.unit || '' })),
+            })),
+            summary: {
+                total_cif_fob_value: String(d.totalCifFobValue || ''),
+                total_gst_amount: String(d.totalGstAmount || ''),
+                total_excise_duty: String(d.totalExciseDutyPayable || ''),
+                total_customs_duty: String(d.totalCustomsDutyPayable || ''),
+                total_other_tax: String(d.totalOtherTaxPayable || ''),
+                total_amount_payable: String(d.totalAmountPayable || ''),
+            },
+            ca_conditions: [],
+            sc_conditions: [],
+            licence_numbers: [],
+            cpc_codes: [],
+            containers: (d.containers || []).map(c => `${c.containerNumber || ''} ${c.containerTypeSize || ''} ${c.shipperSealNumber || ''}`.trim()),
+        };
+
+        for (const oc of outcomes) {
+            for (const cond of (oc.outcomeApprovalConditions || [])) {
+                const entry = { agency_code: cond.approvalAgency || '', condition_code: cond.approvalConditionCode || '', description: cond.message || '' };
+                if (entry.agency_code === 'CA') permit.ca_conditions.push(entry);
+                else permit.sc_conditions.push(entry);
+            }
+        }
+
+        if (!permit.permit_number) throw new Error('Missing permit number in JSON');
+        return permit;
+    }
+
+    // ============================================================
     // CCP FORMATTER
     // ============================================================
     function line(text) { return (text || '').substring(0, LINE_WIDTH).padEnd(LINE_WIDTH); }
@@ -829,7 +955,7 @@
     fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
 
     function handleFile(file) {
-        if (!file.name.endsWith('.xml')) { showStatus('Please select an XML file.', 'error'); return; }
+        if (!file.name.endsWith('.xml') && !file.name.endsWith('.json')) { showStatus('Please select an XML or JSON file.', 'error'); return; }
         selectedFile = file;
         uploadArea.classList.add('has-file');
         fileNameEl.textContent = file.name;
@@ -847,11 +973,11 @@
         progressContainer.classList.add('visible');
 
         try {
-            await tick(); showProgress('Reading XML file...', 10);
-            const xmlText = await selectedFile.text();
+            await tick(); showProgress('Reading file...', 10);
+            const fileText = await selectedFile.text();
 
-            await tick(); showProgress('Parsing XML...', 30);
-            const permit = parseXML(xmlText);
+            await tick(); showProgress('Parsing input...', 30);
+            const permit = selectedFile.name.endsWith('.json') ? parseJSON(fileText) : parseXML(fileText);
 
             await tick(); showProgress('Formatting CCP pages...', 50);
             const pages = formatCCP(permit);

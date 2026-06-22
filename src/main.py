@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.parser import parse_tradenet_response
+from src.parser import parse_tradenet_response, parse_permit_file
 from src.formatter import format_ccp, format_ccp_text
 from src.renderer import render_pdf
 
@@ -57,16 +57,21 @@ async def health():
     },
 )
 async def generate_ccp_pdf(request: Request):
-    """Generate a CCP PDF from TradenetResponse XML."""
+    """Generate a CCP PDF from TradenetResponse XML or JSON."""
     body = await request.body()
     if not body:
         raise HTTPException(status_code=400, detail="Request body is empty")
 
+    content_type = request.headers.get("content-type", "")
+    filename = ""
+    if "json" in content_type:
+        filename = "input.json"
+
     try:
-        permit_data = parse_tradenet_response(body)
+        permit_data = parse_permit_file(body, filename)
     except Exception as e:
-        logger.error("XML parse error: %s", e)
-        raise HTTPException(status_code=400, detail=f"Invalid XML: {str(e)}")
+        logger.error("Parse error: %s", e)
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
 
     if not permit_data.permit_number:
         raise HTTPException(status_code=422, detail="Missing required field: permit_number")
@@ -99,10 +104,13 @@ async def generate_ccp_text(request: Request):
     if not body:
         raise HTTPException(status_code=400, detail="Request body is empty")
 
+    content_type = request.headers.get("content-type", "")
+    filename = "input.json" if "json" in content_type else ""
+
     try:
-        permit_data = parse_tradenet_response(body)
+        permit_data = parse_permit_file(body, filename)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid XML: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
 
     if not permit_data.permit_number:
         raise HTTPException(status_code=422, detail="Missing required field: permit_number")
@@ -124,8 +132,8 @@ def cli():
         print(f"Error: Input file not found: {input_path}")
         sys.exit(1)
 
-    xml_bytes = input_path.read_bytes()
-    permit_data = parse_tradenet_response(xml_bytes)
+    file_bytes = input_path.read_bytes()
+    permit_data = parse_permit_file(file_bytes, input_path.name)
     pages = format_ccp(permit_data)
     pdf_bytes = render_pdf(pages, permit_number=permit_data.permit_number)
 

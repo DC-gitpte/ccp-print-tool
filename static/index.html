@@ -132,17 +132,17 @@
 </head>
 <body>
     <h1>CCP Print Tool</h1>
-    <p class="subtitle">Upload a TradenetResponse XML to generate a Cargo Clearance Permit PDF</p>
+    <p class="subtitle">Upload a TradenetResponse XML or JSON to generate a Cargo Clearance Permit PDF</p>
 
     <div class="container">
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">&#128196;</div>
-            <strong>Drop XML file here or click to browse</strong>
-            <p>Accepts TradenetResponse XML (.xml)</p>
+            <strong>Drop XML or JSON file here or click to browse</strong>
+            <p>Accepts TradenetResponse XML (.xml) or JSON (.json)</p>
             <div class="file-name" id="fileName"></div>
             <div class="file-size" id="fileSize"></div>
         </div>
-        <input type="file" id="fileInput" accept=".xml,application/xml,text/xml">
+        <input type="file" id="fileInput" accept=".xml,.json,application/xml,text/xml,application/json">
 
         <button class="btn" id="generateBtn" disabled>Generate CCP PDF</button>
         <button class="btn btn-secondary" id="textBtn" disabled>View as Text (Debug)</button>
@@ -204,8 +204,8 @@
         });
 
         function handleFile(file) {
-            if (!file.name.endsWith('.xml')) {
-                showStatus('Please select an XML file.', 'error');
+            if (!file.name.endsWith('.xml') && !file.name.endsWith('.json')) {
+                showStatus('Please select an XML or JSON file.', 'error');
                 return;
             }
             selectedFile = file;
@@ -238,9 +238,10 @@
                 setTimeout(() => showProgress('Formatting CCP pages...', 50), 300);
                 setTimeout(() => showProgress('Rendering PDF...', 70), 500);
 
+                const contentType = selectedFile.name.endsWith('.json') ? 'application/json' : 'application/xml';
                 const response = await fetch('/api/v1/ccp/generate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/xml' },
+                    headers: { 'Content-Type': contentType },
                     body: await selectedFile.arrayBuffer(),
                 });
 
@@ -281,9 +282,10 @@
             showProgress('Generating text output...', 50);
 
             try {
+                const contentType = selectedFile.name.endsWith('.json') ? 'application/json' : 'application/xml';
                 const response = await fetch('/api/v1/ccp/generate-text', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/xml' },
+                    headers: { 'Content-Type': contentType },
                     body: await selectedFile.arrayBuffer(),
                 });
 
