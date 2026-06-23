@@ -86,7 +86,7 @@ def render_pdf(pages: list[list[str]], permit_number: str = "") -> bytes:
             pdf.set_xy(MARGIN_LEFT_MM, y)
             safe_line = line.encode("latin-1", errors="replace").decode("latin-1")
 
-            if _should_bold_line(safe_line, permit_number):
+            if _should_bold_line(safe_line, permit_number, page_idx == 0):
                 pdf.set_font(FONT_NAME, style="B", size=FONT_SIZE_PT)
                 pdf.cell(w=USABLE_WIDTH_MM, h=LINE_HEIGHT_MM, text=safe_line)
                 pdf.set_font(FONT_NAME, size=FONT_SIZE_PT)
@@ -104,10 +104,10 @@ def render_pdf(pages: list[list[str]], permit_number: str = "") -> bytes:
     return buffer.getvalue()
 
 
-def _should_bold_line(line: str, permit_number: str) -> bool:
+def _should_bold_line(line: str, permit_number: str, is_first_page: bool) -> bool:
     """Determine if a line should be rendered in bold per spec."""
     stripped = line.strip()
-    if permit_number and f"PERMIT NO" in line and permit_number in line:
+    if is_first_page and permit_number and "PERMIT NO" in line and permit_number in line:
         return True
     if CONDITION_CODE_PATTERN.match(stripped):
         return True

@@ -878,9 +878,9 @@
     // ============================================================
     const CONDITION_CODE_RE = /^[A-Z0-9-]{1,4}\s{0,3} - /;
 
-    function shouldBoldLine(line, permitNumber) {
+    function shouldBoldLine(line, permitNumber, isFirstPage) {
         const stripped = line.trim();
-        if (permitNumber && line.includes('PERMIT NO') && line.includes(permitNumber)) return true;
+        if (isFirstPage && permitNumber && line.includes('PERMIT NO') && line.includes(permitNumber)) return true;
         if (CONDITION_CODE_RE.test(stripped)) return true;
         return false;
     }
@@ -927,7 +927,7 @@
                     y = MARGIN_MM;
                 }
 
-                if (shouldBoldLine(textLine, permitNumber)) {
+                if (shouldBoldLine(textLine, permitNumber, pageIdx === 0)) {
                     doc.setFont('courier', 'bold');
                 } else {
                     doc.setFont('courier', 'normal');
