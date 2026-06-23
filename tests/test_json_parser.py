@@ -122,7 +122,7 @@ def test_auto_detect_json_by_content(sample_json):
 def test_full_pipeline_json_to_pdf(sample_json):
     permit = parse_json_permit(sample_json)
     pages = format_ccp(permit)
-    assert len(pages) >= 3
+    assert len(pages) >= 2
     pdf_bytes = render_pdf(pages, permit_number=permit.permit_number)
     assert pdf_bytes[:4] == b"%PDF"
 

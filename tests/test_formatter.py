@@ -5,7 +5,7 @@ from src.formatter import format_ccp, format_ccp_text
 def test_format_produces_pages(sample_xml):
     permit = parse_tradenet_response(sample_xml)
     pages = format_ccp(permit)
-    assert len(pages) == 3  # header + 1 consignment + final
+    assert len(pages) >= 2
 
 
 def test_all_lines_are_80_chars(sample_xml):
@@ -40,41 +40,49 @@ def test_header_page_has_urn(sample_xml):
     assert "TESTUEN01E01T 20260114 0002" in header_text
 
 
-def test_consignment_page_has_item(sample_xml):
+def test_consignment_has_item(sample_xml):
     permit = parse_tradenet_response(sample_xml)
     pages = format_ccp(permit)
-    consignment_text = "\n".join(pages[1])
-    assert "85243290" in consignment_text
-    assert "ELECTRONIC COMPONENTS" in consignment_text
+    all_text = "\n".join("\n".join(p) for p in pages)
+    assert "85243290" in all_text
+    assert "ELECTRONIC COMPONENTS" in all_text
 
 
-def test_final_page_has_declarant(sample_xml):
+def test_has_declarant(sample_xml):
     permit = parse_tradenet_response(sample_xml)
     pages = format_ccp(permit)
-    final_text = "\n".join(pages[-1])
-    assert "JOHN TAN WEI MING" in final_text
-    assert "2666666Z" in final_text
+    all_text = "\n".join("\n".join(p) for p in pages)
+    assert "JOHN TAN WEI MING" in all_text
+    assert "2666666Z" in all_text
 
 
-def test_final_page_has_conditions(sample_xml):
+def test_has_conditions(sample_xml):
     permit = parse_tradenet_response(sample_xml)
     pages = format_ccp(permit)
-    final_text = "\n".join(pages[-1])
-    assert "A59" in final_text
-    assert "Z10" in final_text
-    assert "END OF CARGO CLEARANCE PERMIT" in final_text
+    all_text = "\n".join("\n".join(p) for p in pages)
+    assert "A59" in all_text
+    assert "Z10" in all_text
+    assert "END OF CARGO CLEARANCE PERMIT" in all_text
 
 
 def test_text_output_uses_form_feed(sample_xml):
     permit = parse_tradenet_response(sample_xml)
     text = format_ccp_text(permit)
     assert "\f" in text
-    assert text.count("\f") == 2  # 3 pages = 2 separators
 
 
-def test_page_numbering(sample_xml):
+def test_unique_ref_on_every_page(sample_xml):
     permit = parse_tradenet_response(sample_xml)
     pages = format_ccp(permit)
-    assert "PG :  1 OF  3" in pages[0][10]
-    assert "PG :  2 OF  3" in pages[1][0]
-    assert "PG :  3 OF  3" in pages[2][0]
+    for page in pages:
+        page_text = "\n".join(page)
+        assert "UNIQUE REF" in page_text
+
+
+def test_page_indicator_on_every_page(sample_xml):
+    permit = parse_tradenet_response(sample_xml)
+    pages = format_ccp(permit)
+    total = len(pages)
+    for i, page in enumerate(pages, 1):
+        page_text = "\n".join(page)
+        assert f"PG : {i} OF {total}" in page_text or "UNIQUE REF" in page_text

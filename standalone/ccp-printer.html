@@ -627,251 +627,179 @@
         return isNaN(v) ? 'S$' + a : 'S$' + v.toLocaleString('en', {minimumFractionDigits:2, maximumFractionDigits:2});
     }
 
+    const LINES_PER_PAGE = 62;
+
     function formatCCP(permit) {
-        const totalPages = calcTotalPages(permit);
-        const pages = [];
-        pages.push(formatHeaderPage(permit, 1, totalPages));
-        pages.push(...formatConsignmentPages(permit, totalPages));
-        pages.push(formatFinalPage(permit, pages.length + 1, totalPages));
-        return pages;
+        const allContent = [];
+        allContent.push(...formatHeaderContent(permit));
+        allContent.push(...formatConsignmentContent(permit));
+        allContent.push(...formatFinalContent(permit));
+        return paginateContent(allContent, permit);
     }
 
-    function calcTotalPages(permit) {
-        const itemPages = Math.max(1, Math.ceil(permit.items.length / MAX_ITEMS_PER_PAGE));
-        return 1 + itemPages + 1;
+    function paginateContent(contentLines, permit) {
+        const urnStr = `${permit.urn.entity_id} ${permit.urn.date} ${permit.urn.sequence}`;
+        const usable = LINES_PER_PAGE - 4;
+        const rawPages = [];
+        for (let i = 0; i < contentLines.length; i += usable) {
+            rawPages.push(contentLines.slice(i, i + usable));
+        }
+        const totalPages = rawPages.length;
+        const finalPages = [];
+        for (let p = 0; p < totalPages; p++) {
+            const pageLines = [];
+            pageLines.push(line('-'.repeat(LINE_WIDTH)));
+            pageLines.push(line(`UNIQUE REF : ${urnStr}`));
+            pageLines.push(...rawPages[p]);
+            const pad = LINES_PER_PAGE - pageLines.length - 2;
+            for (let i = 0; i < Math.max(0, pad); i++) pageLines.push(line(''));
+            pageLines.push(line('-'.repeat(LINE_WIDTH)));
+            const pi = `PG : ${p+1} OF ${totalPages}`;
+            pageLines.push(line(`UNIQUE REF : ${urnStr.padEnd(50)}${pi}`));
+            finalPages.push(pageLines);
+        }
+        return finalPages;
     }
 
-    function formatHeaderPage(p, pageNum, totalPages) {
+    function formatHeaderContent(p) {
         const lines = [];
-        for (let i = 0; i < 5; i++) lines.push(line(''));
+        lines.push(line(''));
+        lines.push(line(''));
+        lines.push(line(''));
         lines.push(line(' '.repeat(56) + `PERMIT NO : ${p.permit_number}`));
-        for (let i = 0; i < 4; i++) lines.push(line(''));
-
-        const pi = `PG : ${String(pageNum).padStart(2)} OF ${String(totalPages).padStart(2)}`;
-        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT' + ' '.repeat(8) + pi));
-        lines.push(line('')); lines.push(line(''));
-
+        lines.push(line(''));
+        lines.push(line(''));
+        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT'));
+        lines.push(line(''));
         lines.push(line(`MESSAGE TYPE      : ${MSG_TYPE_DESC[p.message_type] || p.message_type}`));
         lines.push(line(`DECLARATION TYPE  : ${DEC_TYPE_DESC[p.declaration_type] || p.declaration_type}`));
-        lines.push(line('')); lines.push(line(''));
-
+        lines.push(line(''));
         const vs = fmtDate(p.validity_period.start_date);
         const ve = fmtDate(p.validity_period.end_date);
-        lines.push(line(` ${'IMPORTER:'.padEnd(35)}VALIDITY PERIOD      : ${vs} -`));
-        lines.push(line(` ${p.importer.name.substring(0,35).padEnd(35)}                       ${ve}`));
-        lines.push(line(` ${p.importer.address_line1.substring(0,35).padEnd(35)}`));
+        lines.push(line(`IMPORTER:${' '.repeat(27)}VALIDITY PERIOD      : ${vs} -`));
+        lines.push(line(`${p.importer.name.substring(0,35).padEnd(36)}${' '.repeat(28)}${ve}`));
+        lines.push(line(p.importer.address_line1.substring(0,35)));
         const wt = `${p.cargo.total_gross_weight}/${p.cargo.total_gross_weight_unit}`;
-        lines.push(line(` ${p.importer.entity_id.substring(0,17).padEnd(35)}TOTAL GROSS WT/UNIT  : ${wt}`));
-
+        lines.push(line(`${p.importer.entity_id.substring(0,17).padEnd(36)}TOTAL GROSS WT/UNIT  :${wt.padStart(17)}`));
         const pk = `${p.cargo.total_outer_pack}/${p.cargo.total_outer_pack_unit}`;
-        lines.push(line(` ${'EXPORTER:'.padEnd(35)}TOTAL OUTER PACK/UNIT: ${pk}`));
-        lines.push(line(` ${p.exporter.name.substring(0,35).padEnd(35)}TOT EXCISE DUT PAYABLE : ${fmtAmt(p.summary.total_excise_duty)}`));
-        lines.push(line(` ${p.exporter.address_line1.substring(0,35).padEnd(35)}TOT CUSTOMS DUT PAYABLE: ${fmtAmt(p.summary.total_customs_duty)}`));
-        lines.push(line(` ${p.exporter.entity_id.substring(0,17).padEnd(35)}TOT OTHER TAX PAYABLE  : ${fmtAmt(p.summary.total_other_tax)}`));
-
-        lines.push(line(` ${'HANDLING AGENT:'.padEnd(35)}TOTAL GST AMT          : ${fmtAmt(p.summary.total_gst_amount)}`));
-        lines.push(line(` ${p.handling_agent.name.substring(0,35).padEnd(35)}TOTAL AMOUNT PAYABLE   : ${fmtAmt(p.summary.total_amount_payable)}`));
-        lines.push(line(` ${p.handling_agent.address_line1.substring(0,35).padEnd(35)}CARGO PACKING TYPE: ${(p.cargo.packing_type_description||'').substring(0,23)}`));
-        lines.push(line(` ${p.handling_agent.entity_id.substring(0,30).padEnd(35)}IN TRANSPORT IDENTIFIER:`));
-        lines.push(line(` ${''.padEnd(35)}${(p.transport.inward.transport_identifier||'').substring(0,35)}`));
-
-        lines.push(line(` ${'PORT OF LOADING/NEXT PORT OF CALL:'.padEnd(35)}CONVEYANCE REFERENCE NO: ${p.transport.inward.conveyance_reference.substring(0,17)}`));
-        lines.push(line(` ${p.transport.loading_port.substring(0,35).padEnd(35)}OBL/MAWB NO:`));
-        lines.push(line(` ${'PORT OF DISCHARGE/FINAL PORT OF CALL'.padEnd(35)}${p.transport.inward.mawb_oucr_obl.substring(0,35)}`));
-        lines.push(line(` ${p.transport.discharge_port.substring(0,35).padEnd(35)}ARRIVAL DATE         : ${fmtDate(p.transport.arrival_date)}`));
-
-        lines.push(line(` ${'COUNTRY OF FINAL DESTINATION:'.padEnd(35)}OU TRANSPORT IDENTIFIER:`));
-        lines.push(line(` ${(p.transport.final_destination_country||'').substring(0,35).padEnd(35)}${(p.transport.outward.transport_identifier||'').substring(0,35)}`));
-        lines.push(line(` ${'INWARD CARRIER AGENT:'.padEnd(35)}CONVEYANCE REFERENCE NO: ${p.transport.outward.conveyance_reference.substring(0,17)}`));
-        lines.push(line(` ${p.inward_carrier_agent.name.substring(0,35).padEnd(35)}OBL/MAWB/UCR NO:`));
-        lines.push(line(` ${p.inward_carrier_agent.address_line1.substring(0,35).padEnd(35)}${p.transport.outward.mawb_oucr_obl.substring(0,35)}`));
-        lines.push(line(` ${p.inward_carrier_agent.entity_id.substring(0,30).padEnd(35)}DEPARTURE DATE       : ${fmtDate(p.transport.departure_date)}`));
-
-        lines.push(line(` ${'OUTWARD CARRIER AGENT:'.padEnd(35)}`));
+        lines.push(line(`EXPORTER:${' '.repeat(27)}TOTAL OUTER PACK/UNIT:${pk.padStart(17)}`));
+        lines.push(line(`${p.exporter.name.substring(0,35).padEnd(36)}TOT EXCISE DUT PAYABLE : ${fmtAmt(p.summary.total_excise_duty)}`));
+        lines.push(line(`${p.exporter.address_line1.substring(0,35).padEnd(36)}TOT CUSTOMS DUT PAYABLE: ${fmtAmt(p.summary.total_customs_duty)}`));
+        lines.push(line(`${p.exporter.entity_id.substring(0,17).padEnd(36)}TOT OTHER TAX PAYABLE  : ${fmtAmt(p.summary.total_other_tax)}`));
+        lines.push(line(`HANDLING AGENT:${' '.repeat(21)}TOTAL GST AMOUNT     : ${fmtAmt(p.summary.total_gst_amount)}`));
+        lines.push(line(`${p.handling_agent.name.substring(0,35).padEnd(36)}TOTAL AMOUNT PAYABLE : ${fmtAmt(p.summary.total_amount_payable)}`));
+        lines.push(line(`${p.handling_agent.address_line1.substring(0,35).padEnd(36)}CARGO PACKING TYPE: ${(p.cargo.packing_type_description||'').substring(0,23)}`));
+        lines.push(line(`${(p.handling_agent.entity_id||'').substring(0,30).padEnd(36)}IN TRANSPORT IDENTIFIER:`));
+        lines.push(line(`${' '.repeat(36)}${(p.transport.inward.transport_identifier||'').substring(0,35)}`));
+        lines.push(line(`PORT OF LOADING/NEXT PORT OF CALL:   CONVEYANCE REFERENCE NO: ${p.transport.inward.conveyance_reference.substring(0,17)}`));
+        lines.push(line(`${p.transport.loading_port.substring(0,35).padEnd(36)}OBL/MAWB NO:`));
+        lines.push(line(`PORT OF DISCHARGE/FINAL PORT OF CALL: ${p.transport.inward.mawb_oucr_obl.substring(0,35)}`));
+        lines.push(line(`${p.transport.discharge_port.substring(0,35).padEnd(36)}ARRIVAL DATE         : ${fmtDate(p.transport.arrival_date)}`));
+        lines.push(line(`COUNTRY OF FINAL DESTINATION:        OU TRANSPORT IDENTIFIER:`));
+        lines.push(line(`${(p.transport.final_destination_country||'').substring(0,35).padEnd(36)}${(p.transport.outward.transport_identifier||'').substring(0,35)}`));
+        lines.push(line(`INWARD CARRIER AGENT:                CONVEYANCE REFERENCE NO: ${p.transport.outward.conveyance_reference.substring(0,17)}`));
+        lines.push(line(`${p.inward_carrier_agent.name.substring(0,35).padEnd(36)}OBL/MAWB/UCR NO:`));
+        lines.push(line(`${p.inward_carrier_agent.address_line1.substring(0,35).padEnd(36)}${p.transport.outward.mawb_oucr_obl.substring(0,35)}`));
+        lines.push(line(`${(p.inward_carrier_agent.entity_id||'').substring(0,30).padEnd(36)}DEPARTURE DATE       : ${fmtDate(p.transport.departure_date)}`));
+        lines.push(line('OUTWARD CARRIER AGENT:'));
         const cert = p.licence_numbers.length > 0 ? p.licence_numbers[0] : '';
-        lines.push(line(` ${p.outward_carrier_agent.name.substring(0,35).padEnd(35)}CERTIFICATE NO: ${cert.substring(0,17)}`));
-        lines.push(line(` ${p.outward_carrier_agent.address_line1.substring(0,35).padEnd(35)}`));
-        lines.push(line(` ${p.outward_carrier_agent.entity_id.substring(0,30).padEnd(35)}`));
-
-        lines.push(line(` ${'PLACE OF RELEASE:'.padEnd(35)}PLACE OF RECEIPT:`));
-        lines.push(line(` ${p.cargo.release_location_name.substring(0,32).padEnd(35)}${p.cargo.receipt_location_name.substring(0,32)}`));
-        lines.push(line('')); lines.push(line(''));
-
-        lines.push(line(` ${'LICENCE NO:'.padEnd(35)}CUSTOMS PROCEDURE CODE (CPC) :`));
-        for (let i = 0; i < 5; i++) {
-            const lic = (p.licence_numbers[i] || '').substring(0,35);
-            const cpc = (p.cpc_codes[i] || '').substring(0,35);
-            lines.push(line(` ${lic.padEnd(35)}${cpc}`));
-        }
-
-        lines.push(line(SEPARATOR_LINE));
-        lines.push(line(` UNIQUE REF : ${p.urn.entity_id} ${p.urn.date} ${p.urn.sequence}`));
+        lines.push(line(`${p.outward_carrier_agent.name.substring(0,35).padEnd(36)}CERTIFICATE NO: ${cert.substring(0,17)}`));
+        lines.push(line(p.outward_carrier_agent.address_line1.substring(0,35)));
+        lines.push(line((p.outward_carrier_agent.entity_id||'').substring(0,30)));
+        lines.push(line(''));
+        lines.push(line(`PLACE OF RELEASE:${''.padEnd(19)}PLACE OF RECEIPT:`));
+        lines.push(line(`${p.cargo.release_location_name.substring(0,32).padEnd(36)}${p.cargo.receipt_location_name.substring(0,32)}`));
+        lines.push(line(`LICENCE NO:${''.padEnd(25)}CUSTOMS PROCEDURE CODE (CPC) :`));
         return lines;
     }
 
-    function formatConsignmentPages(permit, totalPages) {
-        const pages = [];
-        const items = permit.items;
-        for (let start = 0; start < items.length; start += MAX_ITEMS_PER_PAGE) {
-            const pageItems = items.slice(start, start + MAX_ITEMS_PER_PAGE);
-            pages.push(formatConsignmentPage(permit, pageItems, pages.length + 2, totalPages));
-        }
-        if (pages.length === 0) pages.push(formatConsignmentPage(permit, [], 2, totalPages));
-        return pages;
-    }
-
-    function formatConsignmentPage(permit, items, pageNum, totalPages) {
+    function formatConsignmentContent(permit) {
         const lines = [];
-        const pi = `PG : ${String(pageNum).padStart(2)} OF ${String(totalPages).padStart(2)}`;
-        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT' + ' '.repeat(8) + pi));
-        lines.push(line(` PERMIT NO    : ${permit.permit_number.padEnd(11)}     ======================`));
+        lines.push(line(`PERMIT NO    : ${permit.permit_number.padEnd(11)}     ======================`));
         lines.push(line(' '.repeat(38) + '(CONTINUATION PAGE)'));
         lines.push(line(''));
-        lines.push(line(' CONSIGNMENT DETAILS'));
+        lines.push(line('CONSIGNMENT DETAILS'));
         lines.push(line(SEPARATOR_LINE));
-        lines.push(line(' S/NO HS CODE   CURRENT LOT NO            PREVIOUS LOT NO'));
-        lines.push(line(' MARKING  CTY OF ORIGIN  BRAND NAME        MODEL'));
-        lines.push(line(' IN MAWB/OUCR/OBL                         OUT MAWB/OUCR/OBL'));
-        lines.push(line(' IN HAWB/HUCR/HBL                         OUT HAWB/HUCR/HBL'));
-        lines.push(line(' PACKING/GOODS DESCRIPTION                HS QUANTITY & UNIT'));
-        lines.push(line('                                           CIF/FOB VALUE (S$)'));
-        lines.push(line('                                           LSP VALUE (S$)'));
-        lines.push(line('                                           GST AMOUNT (S$)'));
-        lines.push(line('                                           DUT QTY/WT/VOL & UNIT'));
-        lines.push(line('                                           UNIT PRICE & CODE'));
-        lines.push(line('                                           EXCISE DUTY PAYABLE (S$)'));
-        lines.push(line('                                           CUSTOMS DUTY PAYABLE(S$)'));
-        lines.push(line('                                           OTHER TAX PAYABLE(S$)'));
-        lines.push(line(' MANUFACTURER\'S NAME'));
+        lines.push(line('S/NO  HS CODE    CURRENT LOT NO            PREVIOUS LOT NO'));
+        lines.push(line('MARKING  CTY OF ORIGIN  BRAND NAME        MODEL'));
+        lines.push(line('PACKING/GOODS DESCRIPTION                 HS QUANTITY & UNIT'));
+        lines.push(line(`${''.padEnd(50)}CIF/FOB VALUE (S$)`));
+        lines.push(line(`${''.padEnd(50)}GST AMOUNT (S$)`));
+        lines.push(line("MANUFACTURER'S NAME"));
         lines.push(line(SEPARATOR_LINE));
-
-        for (const item of items) {
+        for (const item of permit.items) {
             lines.push(...formatItem(item));
             lines.push(line(SEPARATOR_LINE));
         }
-
-        lines.push(line(` UNIQUE REF : ${permit.urn.entity_id} ${permit.urn.date} ${permit.urn.sequence}`));
         return lines;
     }
 
     function formatItem(item) {
         const lines = [];
         const sno = String(item.sequence_number).padStart(5);
-        lines.push(line(` ${sno}  ${item.hs_code.substring(0,10).padEnd(10)}  ${(item.current_lot_no||'').substring(0,30).padEnd(30)}${item.previous_lot_no||''}`));
+        lines.push(line(` ${sno} ${item.hs_code.substring(0,10)}`));
         const marks = (item.shipping_marks||'').substring(0,4);
-        lines.push(line(` ${marks.padEnd(4)}  ${item.origin_country.substring(0,2).padEnd(2)}   ${item.brand_name.substring(0,35).padEnd(35)}${item.model}`));
-        lines.push(line(` ${(item.in_mawb_oucr_obl||'').substring(0,35).padEnd(40)}${item.out_mawb_oucr_obl||''}`));
-        lines.push(line(` ${(item.in_hawb_hucr_hbl||'').substring(0,35).padEnd(40)}${item.out_hawb_hucr_hbl||''}`));
-
-        const packing = `${item.outer_pack_qty||''} ${item.outer_pack_unit||''} ${item.inner_pack_qty||''} ${item.inner_pack_unit||''}`.trim();
+        lines.push(line(` ${marks.padEnd(4)}  ${item.origin_country.substring(0,2).padEnd(2)}   ${item.brand_name.substring(0,35)}`));
+        const goods = item.goods_description.substring(0,50);
         const hsQty = `${item.hs_quantity} ${item.hs_quantity_unit}`.trim();
-        lines.push(line(` ${packing.padEnd(20)}                                   ${hsQty.substring(0,20)}`));
-
-        lines.push(line(` ${item.goods_description.substring(0,50).padEnd(50)}${(item.cif_fob_value||'').padStart(14)}`));
-        lines.push(line(` ${''.padEnd(50)}${(item.lsp_value||'').padStart(14)}`));
-        lines.push(line(` ${''.padEnd(50)}${(item.gst_amount||'').padStart(14)}`));
-
-        const dutyQty = `${item.duty_quantity||''} ${item.duty_quantity_unit||''}`.trim();
-        lines.push(line(` ${''.padEnd(50)}${dutyQty.substring(0,20).padStart(20)}`));
-        const unitPrice = `${item.unit_price||''} ${item.unit_price_currency||''}`.trim();
-        lines.push(line(` ${''.padEnd(50)}${unitPrice.substring(0,20).padStart(20)}`));
-        lines.push(line(` ${''.padEnd(50)}${(item.excise_duty||'').padStart(14)}`));
-        lines.push(line(` ${''.padEnd(50)}${(item.customs_duty||'').padStart(14)}`));
-        lines.push(line(` ${''.padEnd(50)}${(item.other_tax||'').padStart(14)}`));
-        lines.push(line(` ${(item.manufacturer_name||'').substring(0,50)}`));
-
+        lines.push(line(hsQty ? `${goods.padEnd(50)}${hsQty.padStart(30)}` : goods));
+        if (item.cif_fob_value) lines.push(line(`${''.padEnd(64)}${item.cif_fob_value.padStart(16)}`));
+        if (item.gst_amount) lines.push(line(`${''.padEnd(64)}${item.gst_amount.padStart(16)}`));
+        if (item.manufacturer_name) lines.push(line(item.manufacturer_name.substring(0,50)));
         for (const casc of item.casc_products) {
             lines.push(line(`        ${casc.code.padEnd(17)}                       ${casc.quantity} ${casc.unit}`));
         }
         return lines;
     }
 
-    function formatFinalPage(permit, pageNum, totalPages) {
+    function formatFinalContent(permit) {
         const lines = [];
-        const pi = `PG : ${String(pageNum).padStart(2)} OF ${String(totalPages).padStart(2)}`;
-        lines.push(line(' '.repeat(37) + 'CARGO CLEARANCE PERMIT' + ' '.repeat(8) + pi));
-        lines.push(line(` PERMIT NO    : ${permit.permit_number.padEnd(11)}     ======================`));
-        lines.push(line(' '.repeat(38) + '(CONTINUATION PAGE)'));
+        lines.push(line('')); lines.push(line(''));
+        if (permit.containers.length) {
+            lines.push(line(SEPARATOR_LINE));
+            for (const c of permit.containers) lines.push(line(c));
+        }
+        lines.push(line(SEPARATOR_LINE));
+        lines.push(line('NO UNAUTHORISED ADDITION/AMENDMENT TO THIS PERMIT MAY BE MADE AFTER APPROVAL'));
+        lines.push(line(SEPARATOR_LINE));
         lines.push(line(''));
-
+        lines.push(line(`NAME OF COMPANY: ${permit.declaring_agent.name.substring(0,50)}`));
+        lines.push(line(''));
+        lines.push(line(`DECLARANT NAME : ${permit.declarant.name.substring(0,50)}`));
+        lines.push(line(''));
+        lines.push(line(`DECLARANT CODE : ${permit.declarant.code.substring(0,17)}`));
+        lines.push(line(`TEL NO         : ${permit.declarant.telephone.substring(0,25)}`));
         lines.push(line(SEPARATOR_LINE));
-        lines.push(line(' NO UNAUTHORISED ADDITION/AMENDMENT TO THIS PERMIT MAY BE MADE AFTER APPROVAL'));
-        lines.push(line(SEPARATOR_LINE));
-
-        lines.push(line(` NAME OF COMPANY: ${permit.declaring_agent.name.substring(0,50)}`));
-        lines.push(line(` DECLARANT NAME : ${permit.declarant.name.substring(0,50)}`));
-        lines.push(line(` DECLARANT CODE : ${permit.declarant.code.substring(0,17)}`));
-        lines.push(line(` TEL NO         : ${permit.declarant.telephone.substring(0,25)}`));
-
-        lines.push(line(SEPARATOR_LINE));
-        lines.push(...formatConditionsSection(permit.ca_conditions, permit.sc_conditions));
-        return lines;
-    }
-
-    // ============================================================
-    // CONDITION FORMATTER
-    // ============================================================
-    function formatConditionsSection(ca, sc) {
-        const lines = [];
-        lines.push(line('-'.repeat(LINE_WIDTH)));
         lines.push(line('CONTROLLING AGENCY/CUSTOMS CONDITIONS'));
-        for (const c of ca) lines.push(...formatCondition(c));
-        for (const c of sc) lines.push(...formatCondition(c));
+        const allConds = [...permit.ca_conditions, ...permit.sc_conditions];
+        for (const c of allConds) lines.push(...fmtCondGold(c.condition_code, c.description));
         return lines;
     }
 
-    function formatCondition(cond) {
+    function fmtCondGold(code, desc) {
         const lines = [];
-        const chunks = splitOccurrences(cond.description);
-        for (let i = 0; i < chunks.length; i++) {
-            const code = i === 0 ? cond.condition_code : '----';
-            lines.push(...formatOccurrence(code, chunks[i]));
-        }
-        return lines;
-    }
-
-    function splitOccurrences(desc) {
-        if (desc.length <= 512) return [desc];
-        const chunks = [];
-        let rem = desc;
-        while (rem) {
-            if (rem.length <= 512) { chunks.push(rem); break; }
-            chunks.push(rem.substring(0, 512));
-            rem = rem.substring(512);
-        }
-        return chunks;
-    }
-
-    function formatOccurrence(code, text) {
-        const lines = [];
-        const prefix = code.padEnd(4) + ' - ';
-        const textLines = wrapWords(text);
-        for (let i = 0; i < textLines.length; i++) {
-            if (i === 0) {
-                lines.push(line(prefix + textLines[i].padEnd(73)));
-            } else {
-                lines.push(line(textLines[i].padEnd(80)));
+        const prefix = `${code.padEnd(4)} - `;
+        const firstW = LINE_WIDTH - prefix.length;
+        const words = desc.split(/\s+/);
+        if (!words.length) { lines.push(line(prefix)); return lines; }
+        let cur = '', isFirst = true;
+        for (const w of words) {
+            const maxW = isFirst ? firstW : LINE_WIDTH;
+            if (!cur) { cur = w; }
+            else if (cur.length + 1 + w.length <= maxW) { cur += ' ' + w; }
+            else {
+                lines.push(line(isFirst ? prefix + cur : cur));
+                if (isFirst) isFirst = false;
+                cur = w;
             }
         }
+        if (cur) lines.push(line(isFirst ? prefix + cur : cur));
         return lines;
     }
 
-    function wrapWords(text) {
-        if (!text) return [''];
-        const words = text.split(/\s+/);
-        if (!words.length) return [''];
-        const lines = [];
-        let current = '';
-        let lineNum = 0;
-        for (const word of words) {
-            const maxW = lineNum === 0 ? 73 : 80;
-            if (!current) { current = word; }
-            else if (current.length + 1 + word.length <= maxW) { current += ' ' + word; }
-            else { lines.push(current); lineNum++; current = word; }
-        }
-        if (current) lines.push(current);
-        return lines;
-    }
+    // ============================================================
+    // CONDITION FORMATTER (now integrated into fmtCondGold above)
+    // ============================================================
 
     // ============================================================
     // PDF RENDERER
