@@ -1,6 +1,11 @@
 """
-PDF Renderer — converts formatted CCP text pages into a monospace PDF
-with Code 128 barcode on the first page.
+PDF Renderer — converts formatted CCP text pages into a monospace PDF.
+
+Per TDS41-MDS-CCP-M spec:
+- Courier font at 12 CPI (10pt)
+- Code 39 barcode, 1.5"-3.1" length, 0.45"-0.55" height, 3:1 wide-to-narrow
+- Permit number printed in Bold below barcode
+- Condition codes printed in Bold
 """
 
 import tempfile
@@ -22,6 +27,7 @@ from src.config import (
     FONT_NAME,
     FONT_SIZE_PT,
     LINE_HEIGHT_MM,
+    BARCODE_TYPE,
     BARCODE_WIDTH_MM,
     BARCODE_HEIGHT_MM,
     BARCODE_X_MM,
@@ -32,6 +38,10 @@ from src.config import (
     BARCODE_TEXT_DISTANCE,
     BARCODE_QUIET_ZONE,
 )
+
+import re
+
+CONDITION_CODE_PATTERN = re.compile(r"^[A-Z0-9-]{1,4}\s{0,3} - ")
 
 
 def render_pdf(pages: list[list[str]], permit_number: str = "") -> bytes:
@@ -75,7 +85,14 @@ def render_pdf(pages: list[list[str]], permit_number: str = "") -> bytes:
 
             pdf.set_xy(MARGIN_LEFT_MM, y)
             safe_line = line.encode("latin-1", errors="replace").decode("latin-1")
-            pdf.cell(w=USABLE_WIDTH_MM, h=LINE_HEIGHT_MM, text=safe_line)
+
+            if _should_bold_line(safe_line, permit_number):
+                pdf.set_font(FONT_NAME, style="B", size=FONT_SIZE_PT)
+                pdf.cell(w=USABLE_WIDTH_MM, h=LINE_HEIGHT_MM, text=safe_line)
+                pdf.set_font(FONT_NAME, size=FONT_SIZE_PT)
+            else:
+                pdf.cell(w=USABLE_WIDTH_MM, h=LINE_HEIGHT_MM, text=safe_line)
+
             y += LINE_HEIGHT_MM
 
     buffer = BytesIO()
@@ -87,9 +104,19 @@ def render_pdf(pages: list[list[str]], permit_number: str = "") -> bytes:
     return buffer.getvalue()
 
 
+def _should_bold_line(line: str, permit_number: str) -> bool:
+    """Determine if a line should be rendered in bold per spec."""
+    stripped = line.strip()
+    if permit_number and f"PERMIT NO" in line and permit_number in line:
+        return True
+    if CONDITION_CODE_PATTERN.match(stripped):
+        return True
+    return False
+
+
 def _generate_barcode_image(permit_number: str) -> str:
-    """Generate a Code 128 barcode PNG for the permit number."""
-    code128 = barcode.get_barcode_class("code128")
+    """Generate a Code 39 barcode PNG for the permit number."""
+    code39 = barcode.get_barcode_class(BARCODE_TYPE)
 
     writer = ImageWriter()
     writer.set_options(
@@ -102,7 +129,7 @@ def _generate_barcode_image(permit_number: str) -> str:
         }
     )
 
-    barcode_instance = code128(permit_number, writer=writer)
+    barcode_instance = code39(permit_number, writer=writer, add_checksum=False)
 
     tmp = tempfile.NamedTemporaryFile(suffix="", prefix="ccp_barcode_", delete=False)
     tmp.close()

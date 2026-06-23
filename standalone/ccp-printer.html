@@ -143,14 +143,14 @@
     const PAGE_WIDTH_MM = 210;
     const PAGE_HEIGHT_MM = 297;
     const MARGIN_MM = 10;
-    const FONT_SIZE_PT = 9.5;
+    const FONT_SIZE_PT = 10.0;  // Spec: Courier at 12 CPI = 10pt
     const LINE_HEIGHT_MM = FONT_SIZE_PT * 0.3528 * 1.4;
     const USABLE_WIDTH_MM = PAGE_WIDTH_MM - 2 * MARGIN_MM;
 
-    const BARCODE_X_MM = 145;
+    const BARCODE_X_MM = 137;   // Spec: Code 39, ~2.5 inches width
     const BARCODE_Y_MM = 10;
-    const BARCODE_W_MM = 55;
-    const BARCODE_H_MM = 12;
+    const BARCODE_W_MM = 63;
+    const BARCODE_H_MM = 13;
 
     // ============================================================
     // XML PARSER
@@ -876,22 +876,31 @@
     // ============================================================
     // PDF RENDERER
     // ============================================================
+    const CONDITION_CODE_RE = /^[A-Z0-9-]{1,4}\s{0,3} - /;
+
+    function shouldBoldLine(line, permitNumber) {
+        const stripped = line.trim();
+        if (permitNumber && line.includes('PERMIT NO') && line.includes(permitNumber)) return true;
+        if (CONDITION_CODE_RE.test(stripped)) return true;
+        return false;
+    }
+
     function renderPDF(pages, permitNumber) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
-        // Generate barcode canvas
+        // Generate barcode canvas — Code 39 per spec
         let barcodeCanvas = null;
         if (permitNumber) {
             barcodeCanvas = document.createElement('canvas');
             try {
                 JsBarcode(barcodeCanvas, permitNumber, {
-                    format: 'CODE128',
-                    width: 1,
-                    height: 30,
+                    format: 'CODE39',
+                    width: 1.5,
+                    height: 35,
                     displayValue: true,
-                    fontSize: 10,
-                    margin: 5,
+                    fontSize: 11,
+                    margin: 8,
                     flat: true,
                 });
             } catch (e) {
@@ -916,6 +925,12 @@
                     doc.setFont('courier', 'normal');
                     doc.setFontSize(FONT_SIZE_PT);
                     y = MARGIN_MM;
+                }
+
+                if (shouldBoldLine(textLine, permitNumber)) {
+                    doc.setFont('courier', 'bold');
+                } else {
+                    doc.setFont('courier', 'normal');
                 }
                 doc.text(textLine, MARGIN_MM, y + LINE_HEIGHT_MM * 0.75);
                 y += LINE_HEIGHT_MM;
